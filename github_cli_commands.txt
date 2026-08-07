@@ -1,0 +1,21 @@
+Github (Bash):
+
+git checkout main
+git pull
+---
+Checkout a new branch
+git checkout -b branch_type/thing_1
+---
+General working
+git add .
+git commit -m "message"
+git commit -m "message 2"
+git push -u origin branch_type/thing_1
+---
+Complete PR on Github UI
+---
+Sync locally
+git checkout main
+git pull
+git branch d- branch_type/thing_1
+---

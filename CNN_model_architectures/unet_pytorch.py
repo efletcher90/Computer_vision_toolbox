@@ -1,35 +1,89 @@
 import torch.nn as nn
-from torch.nn import LeakyReLU, MaxPool2d
+import torch
 
 """ 
-UNet architecture using the classic design but with padding to ensure same size images after convolution.
+UNet architecture using the classic design but with padding to ensure same size input and output images.
 Uses the PyTorch framework
 """
 
-def double_conv_block(input_channels, output_channels, kernel_size, padding):
-    nn.Sequential(
-        nn.Conv2d(input_channels, output_channels , kernel_size=3, stride=3),
-        nn.ReLU(inplace=True),
-        nn.Dropout(0.1, inplace=True),
-        nn.Conv2d(output_channels, output_channels , kernel_size=3, stride=3),
-        nn.ReLU(inplace=True)
-    )
-    return nn.Sequential()
+# ---------- UNet encoder and decoder block architecture
+
+class DoubleConvBlock(nn.Module):
+    def __init__(self, input_channels, output_channels):
+        super().__init__()
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(input_channels, output_channels , kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(inplace=True),
+            nn.Dropout(0.1, inplace=True),
+            nn.Conv2d(output_channels, output_channels , kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(inplace=True)
+        )
+
+    def forward(self, data):
+        return self.double_conv(data)
+
+class DownSample(nn.Module):
+    def __init__(self, input_channels, output_channels):
+        super().__init__()
+        self.convolution = DoubleConvBlock(input_channels, output_channels)
+        self.pooling = nn.MaxPool2d(kernel_size=2, stride=2)
+
+    def forward(self, data):
+        encoded_data = self.convolution(data) # this is separate to the pool variable below as this will be concatenated following the skip
+        pooled_data = self.pooling(encoded_data) # halve spatial resolution through pooling
+
+        return encoded_data, pooled_data
+
+class UpSample(nn.Module):
+    def __init__(self, input_channels, output_channels):
+        super().__init__()
+        self.up = nn.ConvTranspose2d(input_channels, out_channels=input_channels//2 , kernel_size=2, stride=2)
+        self.convolution = DoubleConvBlock(input_channels, output_channels)
+
+    def forward(self, data, data_skip):
+        decoded_data = self.up(data)
+        data_up = torch.cat([decoded_data, data_skip], dim=1) # dim=1 refers to the channel axis
+
+        return self.convolution(data_up)
+
+# ---------- UNet architecture
 
 class UNet(nn.Module):
-    def __init__(self):
+    def __init__(self, input_channels, num_classes):
         super(UNet, self).__init__()
 
-        self.max_pool2d = nn.MaxPool2d(kernel_size=3, stride=3)
+        self.encoder_conv1 = DownSample(input_channels, 64)
+        self.encoder_conv2 = DownSample(64, 128)
+        self.encoder_conv3 = DownSample(128, 256)
+        self.encoder_conv4 = DownSample(256, 512)
 
-        self.encoder_conv1 = double_conv_block(1, 64, 3, padding=1)
-        self.encoder_conv2 = double_conv_block(64, 128, 3, padding=1)
-        self.encoder_conv3 = double_conv_block(128, 256, 3, padding=1)
-        self.encoder_conv4 = double_conv_block(256, 512, 3, padding=1)
+        self.bottle_neck = DoubleConvBlock(512, 1024)
 
+        self.decoder_conv1 = UpSample(1024, 512)
+        self.decoder_conv2 = UpSample(512, 256)
+        self.decoder_conv3 = UpSample(256, 128)
+        self.decoder_conv4 = UpSample(128, 64)
 
+        self.output = nn.Conv2d(in_channels=64, out_channels=num_classes, kernel_size=1)
 
-        self.decoder_conv1 = double_conv_block(512, 256, 3, padding=1)
-        self.decoder_conv1 = double_conv_block(256, 128, 3, padding=1)
-        self.decoder_conv1 = double_conv_block(128, 64, 3, padding=1)
-        self.decoder_conv1 = double_conv_block(64, 256, 3, padding=1)
+    def forward(self, inputs):
+        down_1, pool_1 = self.encoder_conv1(inputs)
+        down_2, pool_2 = self.encoder_conv2(pool_1)
+        down_3, pool_3 = self.encoder_conv3(pool_2)
+        down_4, pool_4 = self.encoder_conv4(pool_3)
+
+        b_neck = self.bottle_neck(pool_4)
+
+        up_1 = self.decoder_conv1(b_neck, down_4)
+        up_2 = self.decoder_conv2(up_1, down_3)
+        up_3 = self.decoder_conv3(up_2, down_2)
+        up_4 = self.decoder_conv4(up_3, down_1)
+
+        output = self.output(up_4)
+
+        return output
+
+if __name__ == "__main__":
+    inputs = torch.randn(2, 3, 256, 256)
+    model = UNet(input_channels=3, num_classes=1)
+    print(model(inputs).shape)
