@@ -128,8 +128,7 @@ class UNet(nn.Module):
 
         return output
 
-if __name__ == "__main__":
-    def build_UNet():
+    def build_unet(self):
         model = UNet(input_channels=1, num_classes=1)
         loss_f = config.LOSS_F
         optimiser = torch.optim.Adam(model.parameters(), lr=config.L_RATE)

@@ -1,17 +1,17 @@
-from keras.losses import binary_crossentropy, dice
 from keras.layers import Conv2D, Layer, Input, Rescaling, Conv2DTranspose, MaxPooling2D, Dropout, Concatenate, LeakyReLU
 from keras.models import Model
 from keras.optimizers import Adam
-from keras.src.layers import UpSampling2D
+
+from config import L_RATE
 
 class DoubleConvBlock(Layer):
     def __init__(self, filters, dropout_rate):
         super().__init__()
         self.convolution_1 = Conv2D(filters, kernel_size=(3,3), kernel_initializer="he_normal", padding='same')
-        self.leakyReLU_1 = LeakyReLU(alpha=0.1)
+        self.leakyReLU_1 = LeakyReLU(negative_slope=0.1)
         self.dropout = Dropout(dropout_rate)
         self.convolution_2 = Conv2D(filters, kernel_size=(3,3), kernel_initializer="he_normal", padding='same')
-        self.leakyReLU_2 = LeakyReLU(alpha=0.1)
+        self.leakyReLU_2 = LeakyReLU(negative_slope=0.1)
 
     def call(self, inputs, training=False):
         x = self.convolution_1(inputs)
@@ -58,10 +58,10 @@ class UNet(Model):
         self.encoder_conv3 = DownSampleBlock(256, 0.2)
         self.encoder_conv4 = DownSampleBlock(512, 0.2)
 
-        self.bottle_neck = DownSampleBlock(1024, 0.3)
+        self.bottle_neck = DoubleConvBlock(1024, 0.3)
 
-        self.decoder_conv1 = UpSampleBlock(transpose_filters=512, conv_filters=512, dropout_rate=0.1)
-        self.decoder_conv2 = UpSampleBlock(transpose_filters=256, conv_filters=256, dropout_rate=0.1)
+        self.decoder_conv1 = UpSampleBlock(transpose_filters=512, conv_filters=512, dropout_rate=0.2)
+        self.decoder_conv2 = UpSampleBlock(transpose_filters=256, conv_filters=256, dropout_rate=0.2)
         self.decoder_conv3 = UpSampleBlock(transpose_filters=128, conv_filters=128, dropout_rate=0.1)
         self.decoder_conv4 = UpSampleBlock(transpose_filters=64, conv_filters=64, dropout_rate=0.1)
 
@@ -84,15 +84,21 @@ class UNet(Model):
 
         return self.output_conv(x)
 
-if __name__ == "__main__"
-    def build_unet(img_height, img_width, img_channels):
-        """
-        Usage:
-            model = build_unet(1024, 1024, 1)
-            model.compile(optimizer=Adam(learning_rate=...), loss=bce_and_dice_lossf, metrics=[dice])
-        """
-        model = UNet(img_channels=img_channels)
-        inputs = Input((img_height, img_width, img_channels))
-        outputs = model(inputs)
+def build_unet(img_height, img_width, img_channels):
+    """
+    Usage:
+        model = build_unet(1024, 1024, 1)
+        model.compile(optimizer=Adam(learning_rate=...), loss=bce_and_dice_lossf, metrics=[dice])
+    """
+    model = UNet(img_channels=img_channels)
+    inputs = Input((img_height, img_width, img_channels))
+    outputs = model(inputs)
 
-        return Model(inputs=inputs, outputs=outputs)
+    return Model(inputs=inputs, outputs=outputs)
+
+if __name__ == "__main__":
+    test_model = build_unet(256, 256, 1)
+    test_model.compile(optimizer=Adam(learning_rate=L_RATE))
+    test_model.summary()
+
+    ### still nneed to sort out the loss functions
