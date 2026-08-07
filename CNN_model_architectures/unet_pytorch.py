@@ -1,12 +1,13 @@
 import torch.nn as nn
 import torch
+import config
 
 """ 
 UNet architecture using the classic design but with padding to ensure same size input and output images.
 Uses the PyTorch framework
 """
 
-# ---------- UNet encoder and decoder block architecture
+# ---------- UNet encoder and decoder block architecture ---------- #
 
 class DoubleConvBlock(nn.Module):
     def __init__(self, input_channels, output_channels):
@@ -46,7 +47,51 @@ class UpSample(nn.Module):
 
         return self.convolution(data_up)
 
-# ---------- UNet architecture
+# ---------- loss functions for binary segmentation ---------- #
+
+class DiceLoss(nn.Module):
+    """
+    Standalone Dice loss, operating on raw logits (sigmoid applied
+    internally to logit results). This is equivalent to my previous use of Keras' Dice (scores: 0 = perfect, 1 = worst)
+    """
+    def __init__(self, smooth=1.0):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
+
+    def forward(self, logits, labels):
+        probs = nn.Sigmoid(logits)
+        probs = probs.view(-1)
+        labels = labels.view(-1)
+        intersection = (probs * labels).sum()
+        dice_coeff = (2.0 * intersection + self.smooth) / (probs.sum() + labels.sum() + + self.smooth)
+        return 1 - dice_coeff
+
+class BCEDiceLoss(nn.Module):
+    """
+    Hybrid loss function combining binary cross entropy and dice loss.
+    The idea is that it takes both the pixel level classification from the BCE and the
+    intersection-over-union (IOU) score from Dice
+    """
+
+    def __init__(self, smooth=1.0):
+        super().__init__()
+        self.bce = nn.BCEWithLogitsLoss()
+        self.dice = DiceLoss(smooth=smooth)
+
+    def forward(self, logits, labels):
+        return self.bce(logits, labels) + self.dice(logits, labels)
+
+# ---------- UNet architecture ---------- #
+
+""" 
+Differences between PyTorch and Keras
+
+PyTorch expects the input tensor shape  as (batch, channel, height, width) e.g. (100 images, 1 for GS, x=1024px, y=1024px).
+Keras uses (batch, height, width, channel) e.g. (100 images, x=1024px, y=1024px, 1 for GS).
+
+Keras has activation function (i.e. sigmoid for binary usage) and loss function written explicitly during model compile. 
+PyTorch 
+"""
 
 class UNet(nn.Module):
     def __init__(self, input_channels, num_classes):
@@ -84,6 +129,7 @@ class UNet(nn.Module):
         return output
 
 if __name__ == "__main__":
-    inputs = torch.randn(2, 3, 256, 256)
-    model = UNet(input_channels=3, num_classes=1)
-    print(model(inputs).shape)
+    def build_UNet():
+        model = UNet(input_channels=1, num_classes=1)
+        loss_f = config.LOSS_F
+        optimiser = torch.optim.Adam(model.parameters(), lr=config.L_RATE)
