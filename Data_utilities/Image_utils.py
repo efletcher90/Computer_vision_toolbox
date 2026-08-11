@@ -1,13 +1,14 @@
 import config
+from pathlib import Path
+import cv2
 
-class LoadProcessImagesAndMasks:
+class LoadProcessTrainingSet:
     def __init__(self):
         self.file_list = []
         self.mask_list = []
 
-    def filter_accepted_ext(self, file_list):
-        """
-        :param file_list: list of file paths
-        :return:
-        """
-        return [file for file in file_list if file.lower().endswith(config.ALLOWED_IMG_EXTS)]
+    def load_and_filter_files(self, file_list, mask_list):
+        self.file_list = [file for file in file_list if file.lower().endswith(config.ALLOWED_IMG_EXTS)]
+        self.mask_list = [mask for mask in mask_list if mask.lower().endswith(config.ALLOWED_IMG_EXTS)]
+
+
