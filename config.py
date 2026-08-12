@@ -19,9 +19,8 @@ MASK_DIR = str(PATH_START/Path(r"src/Training_set/Masks"))
 RUN_MODE = "predict"
 
 # ---------- UNet config enums ---------- #
-ALLOWED_IMG_EXTS = ['png', 'jpg', 'jpeg', 'tif', 'tiff']
+ALLOWED_IMG_EXTS = ['.png', '.jpg', '.jpeg', '.tif', '.tiff']
 
-if
 LOSS_F = BCEDiceLoss()
 L_RATE = 0.0001
 
