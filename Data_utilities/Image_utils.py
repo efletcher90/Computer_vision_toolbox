@@ -1,17 +1,20 @@
-import config
-from pathlib import Path
-import cv2
 import os
 import random
+import albumentations as A
+import cv2
 import numpy as np
+
+import config
+
+image_root_dir = r"C:\Users\edward.fletcher\PyCharmProjects\Computer_vision_toolbox\sandbox"
+mask_root_dir = r"C:\Users\edward.fletcher\PyCharmProjects\Computer_vision_toolbox\sandbox"
 
 class LoadProcessTrainingSet:
     def __init__(self):
         super().__init__()
-        self.training_masks =[]
-        self.training_images = []
+        self.training_set = []
 
-    def list_training_images_and_masks(self, image_root_dir, mask_root_dir):
+    def list_dicts_of_training_data(self, image_root_dir, mask_root_dir):
         """
         Create a dictionary for training images and another for their corresponding training masks.
         :param image_root_dir:
@@ -41,13 +44,14 @@ class LoadProcessTrainingSet:
         # Any masks and images that do not have matching stems will raise a ValueError.
         # The total number of unpaired as well as the first 10 will be printed.
         if unpaired:
-            raise ValueError(f"Unpaired training set images/masks ({len(unpaired)} total pairs): {sorted(unpaired)[:10]}")
+            raise ValueError(f"Unpaired training set images/masks ({len(unpaired)} total): {sorted(unpaired)[:10]}")
 
-        self.training_images = [images_by_stem[k] for k in common]
-        self.training_masks = [masks_by_stem[k] for k in common]
+        # By using the matched pairs, create a list of dictionaries for each training image, corresponding mask +
+        # matching stem. This list "training_set" can be used to gather the training set easily w/o mismatch issues.
+        for p in common:
+            self.training_set.append({"image":images_by_stem[p], "mask":masks_by_stem[p], "stem":p})
 
-        return self.training_masks, self.training_images
-
+        return self.training_set
 
 class TrainingSetGenerator:
     def __init__(self):
@@ -55,7 +59,7 @@ class TrainingSetGenerator:
 
     def augment_geometry(self, train_image, train_mask):
         """
-        Augmentation of training set geometry. Actions are run on both image and mask simultaneously.
+        Augmentation of training set geometry using Albumentation. Actions are run on both image and mask simultaneously.
         :param train_image:
         :param train_mask:
         :return: train_image.copy(), train_mask.copy()
