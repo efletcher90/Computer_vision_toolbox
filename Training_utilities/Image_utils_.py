@@ -1,3 +1,3 @@
 from torch.utils.data import DataLoader
 
-class
+def load_test_images(dir_path, stem):

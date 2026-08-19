@@ -108,3 +108,5 @@ class TrainingSetGenerator(Dataset):
     #         img = img[:, :, np.newaxis]
     #
     #     return img
+
+ def k_fold_cross_validation(self):
