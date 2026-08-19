@@ -101,4 +101,8 @@ if __name__ == "__main__":
     test_model.compile(optimizer=Adam(learning_rate=L_RATE))
     test_model.summary()
 
-    ### still nneed to sort out the loss functions
+    ### still need to sort out the loss functions
+    ### and training
+
+
+
