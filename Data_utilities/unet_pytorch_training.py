@@ -1,23 +1,29 @@
 import os
-import random
-import albumentations as A
 import cv2
 import numpy as np
-from config import IMAGE_DIR, MASK_DIR, ALLOWED_IMG_EXTS, IMG_HEIGHT, IMG_WIDTH
-from torch.utils.data import Dataset
+from albumentations.pytorch.transforms import ToTensorV2
+import albumentations as A
+from config import IMAGE_DIR, MASK_DIR, ALLOWED_IMG_EXTS, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS
+from torch.utils.data import Dataset, DataLoader
 
-
-class LoadProcessTrainingSet:
-    def __init__(self):
+class TrainingSetGenerator(Dataset):
+    def __init__(self, transform=None):
         super().__init__()
+        self.transform = transform
         self.training_set = []
+        self.list_dicts_of_training_data()
 
     def list_dicts_of_training_data(self):
         """
-        Create a dictionary training_set of image/mask dictionaries.
+        Find all training images and masks, match them by filename stem and create a list of dictionaries
+        containing their file paths.
         """
         accepted_exts = tuple(ext.lower() for ext in ALLOWED_IMG_EXTS)
         accepted_mask_suffix = tuple("_mask" + ext for ext in accepted_exts)
+
+        # use os.walk to go through subdirectories of MASK_DIR and identify mask files that end with "_mask" and have a
+        # lowercase accepted file type, before identifying the stem of the mask (i.e. file name w/o _mask and extension)
+        # and getting the path of the image
 
         masks_by_stem = {}
         for dirpath, _, filenames in os.walk(MASK_DIR):
@@ -26,6 +32,7 @@ class LoadProcessTrainingSet:
                     stem = os.path.splitext(m_name)[0].lower()[:-len("_mask")]
                     masks_by_stem[stem] = os.path.join(dirpath, m_name)
 
+        # same with os.walk for the training images but also checks that these do not have the _mask suffix
         images_by_stem = {}
         for dirpath, _, filenames in os.walk(IMAGE_DIR):
             for i_name in filenames:
@@ -33,47 +40,91 @@ class LoadProcessTrainingSet:
                 if lowercase_img.endswith(accepted_exts) and not lowercase_img.endswith(accepted_mask_suffix):
                     images_by_stem[os.path.splitext(lowercase_img)[0]] = os.path.join(dirpath, i_name)
 
+        # creates a list of images and masks by their common keys, unpaired images/masks are then identified by
+        # removing the common key matches
         common = sorted(images_by_stem.keys() & masks_by_stem.keys())
         unpaired = (images_by_stem.keys() | masks_by_stem.keys()) - set(common)
 
-        # Any masks and images that do not have matching stems will raise a ValueError.
-        # The total number of unpaired as well as printing the first 10 mismatches.
+        # Any masks and images that do not match will raise a ValueError.
+        # Prints - the total number of unpaired as well as the first 10 mismatches.
         if unpaired:
             raise ValueError(f"Unpaired training set images/masks ({len(unpaired)} total): {sorted(unpaired)[:10]}")
 
-        # By using the matched pairs, create a list of dictionaries for each training image, corresponding mask +
+        # By using the matched pairs, append a dictionary for each training image, corresponding mask +
         # matching stem. This list "training_set" can be used to gather the training set easily w/o mismatch issues.
-        for c in common:
-            self.training_set.append({
-                "image":images_by_stem[c],
-                "mask":masks_by_stem[c],
-                "stem":c}
+        for stem in common:
+            self.training_set.append(
+                {
+                "image":images_by_stem[stem],
+                "mask":masks_by_stem[stem],
+                "stem":stem
+                }
             )
 
         return self.training_set
 
-class TrainingSetGenerator(Dataset):
-    def __init__(self):
-        super().__init__()
-        self.training_set = []
+    def __len__(self):
+        """
+        Returns the total number of training images in training_set.
+        """
+        return len(self.training_set)
 
+    def __getitem__(self, idx):
+        """
+        From the training_set list of dictionaries, load one image and its corresponding mask,
+        apply Albumentations (i.e. augmentations) and return them as tensors.
+        """
+        sample = self.training_set[idx]
 
-    def albumentations(self):
-        train_transform = A.Compose(
-            [
-                A.VerticalFlip(p=0.5),
-                A.HorizontalFlip(p=0.5),
+        image_path = sample["image"]
+        mask_path = sample["mask"]
 
-                A.Rotate(angle_range=(-90, 90), p=0.5),
+        # read image file path as colour image, then convert to RGB
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Could not read image from {image_path}")
 
-                A.RandomBrightnessContrast(
-                    brightness_range=(-0.2,0.2),
-                    contrast_range=(-0.2,0.2),
-                    p=0.5
-                ),
-            ],
-            seed=42,
-        )
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # depending on the input channels set in the config, convert to GS if required
+        if IMG_CHANNELS == 1:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        # read all label masks as GS and then normalise to a binary '0 or 1' mask
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        mask = (mask > 0).astype(np.uint8)
+
+        # run the albumentation augmentations if selected
+        if self.transform is not None:
+            augmentation = self.transform(image=image, mask=mask)
+            image = augmentation["image"]
+            mask = augmentation["mask"]
+
+        # With ToTensorV2 used, the mask will not have a channel dimension whilst the RGB/GS image will (e.g. 3,h,w or
+        # 1,h,w) therefore the mask requires an addition of a dimension in the 0 index - going from _,h,w to 1,h,w
+        mask = mask.unsqueeze(dim=0)
+
+        # masks are changed from int to float32 to match the image tensors following the ToTensorV2
+        mask = mask.float()
+
+        return image, mask
+
+        def albumentations_augmentation(self):
+            train_transform = A.Compose(
+                [
+                    A.VerticalFlip(p=0.5),
+                    A.HorizontalFlip(p=0.5),
+
+                    A.Rotate(angle_range=(-90, 90), p=0.5),
+
+                    A.RandomBrightnessContrast(
+                        brightness_range=(-0.2,0.2),
+                        contrast_range=(-0.2,0.2),
+                        p=0.5
+                    ),
+                ],
+                seed=42,
+            )
 
     # def augment_image_intensity(self, train_image):
 
@@ -109,4 +160,4 @@ class TrainingSetGenerator(Dataset):
     #
     #     return img
 
- def k_fold_cross_validation(self):
+ # def k_fold_cross_validation(self):
