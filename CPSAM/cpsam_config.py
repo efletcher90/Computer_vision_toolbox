@@ -1,4 +1,4 @@
-from config import PATH_START
+from unet_config import PATH_START
 
 
 CPSAM_MODEL_FILE = None

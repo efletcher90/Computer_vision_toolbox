@@ -1,10 +1,9 @@
 import torch.nn as nn
 import torch
-import config
+import unet_config
 
 """ 
-UNet architecture using the classic design but with padding to ensure same size input and output images.
-Uses the PyTorch framework
+Classic UNet architecture using PyTorch. Does use padding to ensure same size input and output images.
 """
 
 # ---------- UNet encoder and decoder block architecture ---------- #
@@ -15,7 +14,7 @@ class DoubleConvBlock(nn.Module):
         self.double_conv = nn.Sequential(
             nn.Conv2d(input_channels, output_channels , kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(inplace=True),
-            nn.Dropout(0.1, inplace=True),
+            nn.Dropout(p=0.1, inplace=True),
             nn.Conv2d(output_channels, output_channels , kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(inplace=True)
         )
@@ -82,7 +81,6 @@ class BCEDiceLoss(nn.Module):
         return self.bce(logits, labels) + self.dice(logits, labels)
 
 # ---------- UNet architecture ---------- #
-
 """ 
 Differences between PyTorch and Keras
 
@@ -128,7 +126,3 @@ class UNet(nn.Module):
 
         return output
 
-    def build_unet(self):
-        model = UNet(input_channels=1, num_classes=1)
-        loss_f = config.LOSS_F
-        optimiser = torch.optim.Adam(model.parameters(), lr=config.L_RATE)

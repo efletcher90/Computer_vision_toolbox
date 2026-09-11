@@ -32,5 +32,5 @@ RUN_MODE = "predict"
 # ---------- Accepted file extensions ---------- #
 ALLOWED_IMG_EXTS = ['.png', '.jpg', '.jpeg', '.tif', '.tiff']
 
-
+SEED = 42
 

@@ -3,15 +3,16 @@ import cv2
 import numpy as np
 from albumentations.pytorch.transforms import ToTensorV2
 import albumentations as A
-from config import IMAGE_DIR, MASK_DIR, ALLOWED_IMG_EXTS, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS
+from unet_config import IMAGE_DIR, MASK_DIR, ALLOWED_IMG_EXTS, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, SEED
 from torch.utils.data import Dataset, DataLoader
 
 class TrainingSetGenerator(Dataset):
-    def __init__(self, transform=None):
+    def __init__(self, augmentation=None, seed=None if SEED is None else SEED):
         super().__init__()
-        self.transform = transform
+        self.augmentation = augmentation
         self.training_set = []
         self.list_dicts_of_training_data()
+        self.seed = seed
 
     def list_dicts_of_training_data(self):
         """
@@ -95,8 +96,8 @@ class TrainingSetGenerator(Dataset):
         mask = (mask > 0).astype(np.uint8)
 
         # run the albumentation augmentations if selected
-        if self.transform is not None:
-            augmentation = self.transform(image=image, mask=mask)
+        if self.augmentation is not None:
+            augmentation = self.augmentation(image=image, mask=mask)
             image = augmentation["image"]
             mask = augmentation["mask"]
 
@@ -109,22 +110,32 @@ class TrainingSetGenerator(Dataset):
 
         return image, mask
 
-        def albumentations_augmentation(self):
-            train_transform = A.Compose(
-                [
-                    A.VerticalFlip(p=0.5),
-                    A.HorizontalFlip(p=0.5),
+    def albumentations_augmentation(self):
+        train_transform = A.Compose(
+            [
+                A.VerticalFlip(p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.Rotate(p=0.5, limit=(-90, 90)),
+                A.RandomBrightnessContrast(
+                    p=0.5,
+                    brightness_limit=(-0.2,0.2),
+                    contrast_limit=(-0.2,0.2),
+                )
+            ],
+            seed=self.seed,
+        )
 
-                    A.Rotate(angle_range=(-90, 90), p=0.5),
 
-                    A.RandomBrightnessContrast(
-                        brightness_range=(-0.2,0.2),
-                        contrast_range=(-0.2,0.2),
-                        p=0.5
-                    ),
-                ],
-                seed=42,
-            )
+
+
+
+
+
+
+
+
+
+
 
     # def augment_image_intensity(self, train_image):
 

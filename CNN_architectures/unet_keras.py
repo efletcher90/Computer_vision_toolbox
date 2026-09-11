@@ -2,7 +2,7 @@ from keras.layers import Conv2D, Layer, Input, Rescaling, Conv2DTranspose, MaxPo
 from keras.models import Model
 from keras.optimizers import Adam
 
-from config import L_RATE
+from unet_config import L_RATE
 
 class DoubleConvBlock(Layer):
     def __init__(self, filters, dropout_rate):
