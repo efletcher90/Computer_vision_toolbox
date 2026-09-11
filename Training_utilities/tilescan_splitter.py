@@ -37,8 +37,8 @@ def split_folder_into_rois(input_path, output_path, roi_size, image_extensions):
 
 if __name__ == "__main__":
     split_folder_into_rois(
-        input_path = str(pl.Path(r'C:\Users\edward.fletcher\PyCharmProjects\Computer_vision_toolbox\.data_flatmount_images')),
-        output_path = str(pl.Path(r'C:\Users\edward.fletcher\PyCharmProjects\Computer_vision_toolbox\.data_flatmount_images\ROI_outputs')),
+        input_path = str(pl.Path(r'/data_flatmount_images')),
+        output_path = str(pl.Path(r'/data_flatmount_images\ROI_outputs')),
         roi_size = 512,
         image_extensions = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
     )

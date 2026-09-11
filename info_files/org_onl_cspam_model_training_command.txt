@@ -1,0 +1,7 @@
+PowerShell: cd to C:\Users\dev.ultra\Documents\Ed\PythonProjects\cellpose
+
+then run: .\.venv\Scripts\Activate.ps1
+
+Then run:
+
+python -m cellpose --train --dir "M:\PreClinical\Ed - Data science archive\PRCL_Organoid_ONL_counter\data\train_imgs_labels\test" --mask_filter _seg.npy --learning_rate 0.000001 --weight_decay 0.05 --n_epochs 50 --train_batch_size 1 --save_every 5 --model_name_out cpsam_onl_org_count_v1 --use_gpu --verbose
