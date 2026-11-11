@@ -1,6 +1,5 @@
 import pingouin as pg
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # COLOUR ENUMS #
 AAVB_DRKGRN, AAVB_LITGRN = ["#00443E","#BBFFAF"]
@@ -11,7 +10,7 @@ class CreateBlandAltman:
         self.df = pd.DataFrame(data)
         self.test_name = test_name
 
-    def plot_graph(self,  show=True, save_path=None):
+    def plot_graph(self, save_path=None):
         ax = pg.plot_blandaltman(x=self.df['Reader B'], y=self.df['Reader A'], color=AAVB_DRKGRN,
                                  edgecolor='white',
                                  s=70,
@@ -49,11 +48,8 @@ class CreateBlandAltman:
 
         if save_path:
             ax.savefig(save_path, dpi=300, bbox_inches='tight')
-        if show:
-            plt.show()
-        return ax
 
-        plt.show()
+        return ax
 
 if __name__ == '__main__':
     data = {'Reader A': [35, 36, 36.4, 36.6, 36.8, 37, 37.1, 37.3, 37.4, 37.6,
