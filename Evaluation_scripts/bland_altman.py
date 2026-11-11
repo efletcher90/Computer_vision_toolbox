@@ -1,5 +1,6 @@
 import pingouin as pg
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # COLOUR ENUMS #
 AAVB_DRKGRN, AAVB_LITGRN = ["#00443E","#BBFFAF"]
@@ -49,6 +50,7 @@ class CreateBlandAltman:
         if save_path:
             ax.savefig(save_path, dpi=300, bbox_inches='tight')
 
+        plt.show()
         return ax
 
 if __name__ == '__main__':
