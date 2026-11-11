@@ -35,7 +35,7 @@ class CreateBlandAltman:
         bias.set_label(f'Mean bias = {bias.get_ydata()[0]:.2f} mm$^2$')
 
         # used the upper CI line here for the legend, could use the other if needed. Only one dashed line needed
-        # Limits of Agreement = LoA
+        # Limits of Agreement = LoA (== +-1.96 SD)
         upper.set_label(f'95% LoA range = +{upper.get_ydata()[0]:.2f} to {lower.get_ydata()[0]:.2f} mm$^2$')
 
         ax.legend(loc='lower right', fontsize=9, frameon=False, framealpha=0.25, labelspacing=0.2, borderpad=0.3)
