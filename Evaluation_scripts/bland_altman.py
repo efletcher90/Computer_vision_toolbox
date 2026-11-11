@@ -52,11 +52,8 @@ class CreateBlandAltman:
         return ax
 
 if __name__ == '__main__':
-    data = {'Reader A': [35, 36, 36.4, 36.6, 36.8, 37, 37.1, 37.3, 37.4, 37.6,
-                         38, 38.1, 38.2, 38.5, 38.6, 38.7, 39, 39.1, 39.2, 39.3],
-
-            'Reader B': [32.2, 33.8, 34.0, 35.6, 34.0, 34.9, 35.5, 35.3, 34.6, 35.1, 39.8,
-                         39.2, 40.2, 40.2, 40.4, 40.2, 40.6, 40.7, 41.2, 41.0]
+    BIRC = {'Reader A': [35, 36, 36.4, 36.6, 36.8, 37, 37.1, 37.3, 37.4, 37.6, 38, 38.1, 38.2, 38.5, 38.6, 38.7, 39, 39.1, 39.2, 39.3],
+            'Reader B': [32.2, 33.8, 34.0, 35.6, 34.0, 34.9, 35.5, 35.3, 34.6, 35.1, 39.8, 39.2, 40.2, 40.2, 40.4, 40.2, 40.6, 40.7, 41.2, 41.0]
             }
 
-    CreateBlandAltman(data, test_name='BIRC Reader A versus Reader B').plot_graph()
+    CreateBlandAltman(data=BIRC, test_name='BIRC Reader A versus Reader B').plot_graph()
