@@ -3,13 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # COLOUR ENUMS #
-AAVB_DRKGRN, AAVB_LITGRN = ["#00443E","#BBFFAF"]
+AAVB_DRKGRN, AAVB_LITGRN = ["#00443E", "#BBFFAF"]
 # --- #
 
 class CreateBlandAltman:
-    def __init__(self, data, test_name):
-        self.df = pd.DataFrame(data)
-        self.test_name = test_name
+    def __init__(self, data):
+        merged = {k: v for d in data for k, v in d.items()}
+        #pop() reading the test name as well as removing the k/v pair from the merged dict
+        self.test_name = merged.pop('data_title')
+        self.df = pd.DataFrame(merged)
 
     def plot_graph(self, save_path=None):
         ax = pg.plot_blandaltman(x=self.df['Reader B'], y=self.df['Reader A'], color=AAVB_DRKGRN,
@@ -48,14 +50,17 @@ class CreateBlandAltman:
         lower_ci.set_facecolor(AAVB_LITGRN)
 
         if save_path:
-            ax.savefig(save_path, dpi=300, bbox_inches='tight')
+            ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
 
         plt.show()
         return ax
 
 if __name__ == '__main__':
-    BIRC = {'Reader A': [35, 36, 36.4, 36.6, 36.8, 37, 37.1, 37.3, 37.4, 37.6, 38, 38.1, 38.2, 38.5, 38.6, 38.7, 39, 39.1, 39.2, 39.3],
-            'Reader B': [32.2, 33.8, 34.0, 35.6, 34.0, 34.9, 35.5, 35.3, 34.6, 35.1, 39.8, 39.2, 40.2, 40.2, 40.4, 40.2, 40.6, 40.7, 41.2, 41.0]
-            }
+    BIRC = [{'data_title': 'BIRC Reader A versus Reader B'},
+            {'Reader A': [35, 36, 36.4, 36.6, 36.8, 37, 37.1, 37.3, 37.4, 37.6, 38, 38.1, 38.2, 38.5, 38.6, 38.7, 39,
+                          39.1, 39.2, 39.3]},
+            {'Reader B': [32.2, 33.8, 34.0, 35.6, 34.0, 34.9, 35.5, 35.3, 34.6, 35.1, 39.8, 39.2, 40.2, 40.2, 40.4,
+                          40.2, 40.6, 40.7, 41.2, 41.0]}
+            ]
 
-    CreateBlandAltman(data=BIRC, test_name='BIRC Reader A versus Reader B').plot_graph()
+    CreateBlandAltman(data=BIRC).plot_graph()
