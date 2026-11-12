@@ -32,8 +32,6 @@ def parse_mp_xml_data(xml_files):
                 xml_dict[key] = value
 
     sorted_xml_dict = dict(sorted(xml_dict.items()))
-
-    # print(sorted_xml_dict)
     return sorted_xml_dict
 
 if __name__ == "__main__":
