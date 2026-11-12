@@ -1,6 +1,8 @@
 import xmltodict
 import os
 
+from sympy.codegen.ast import continue_
+
 # use os.walk to go through subdirectories of MP_DIR and identify mask files that end with "_mask" and have a
 # lowercase accepted file type, before identifying the stem of the mask (i.e. file name w/o _mask and extension)
 # and getting the path of the image
@@ -13,10 +15,8 @@ def get_mp_list():
 
     for dirpath, _, filenames in os.walk(MP_DIR):
         for xml_file in filenames:
-            if xml_file.lower().endswith('.xml'):
-                xml_stem = os.path.splitext(xml_file)[0]
-                if xml_stem.lower() == 'projection':
-                    mp_list.append(os.path.join(dirpath, xml_file))
+            if xml_file.lower() == 'projection.xml':
+                mp_list.append(os.path.join(dirpath, xml_file))
 
     return mp_list
 
