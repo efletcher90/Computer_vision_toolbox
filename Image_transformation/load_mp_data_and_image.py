@@ -25,12 +25,11 @@ def parse_mp_xml_data(xml_files):
         with open(x, "rb") as f:
             raw_bytes = f.read()
             data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
-            # parsing the .xml structure for the stimulus id number and the corresponding intensity. For loop then assigns
-            # the final intensity to the id key
+            # parsing the .xml structure w/ xmltodict module. It creates key=stimulus_id and value=final_intensity
             stimuli = data["MitProjection"]["Stimuli"]["Stimulus"]
 
             for stimulus in stimuli:
-                # need to add a zero to stimulus ids lower than 10, so that sorted works properly
+                # need to add a zero to stimulus ids lower than 10, so that sorted() works properly
                 key = f"stimulus {int(stimulus['@id']):02d}"
                 value = int(stimulus["@final_intensity"])
                 xml_dict[key] = value
