@@ -24,14 +24,16 @@ def parse_mp_xml_data(xml_files):
     for x in xml_files:
         with open(x, "rb") as f:
             raw_bytes = f.read()
-            data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
+            stim_data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
             # parsing the .xml structure w/ xmltodict module. It creates key=stimulus_id and value=final_intensity
-            stimuli = data["MitProjection"]["Stimuli"]["Stimulus"]
+            stimuli = stim_data["MitProjection"]["Stimuli"]["Stimulus"]
 
             for stimulus in stimuli:
                 # need to add a zero to stimulus ids lower than 10, so that sorted() works properly
                 key = f"stimulus {int(stimulus['@id']):02d}"
-                value = int(stimulus["@final_intensity"])
+                # values are a list of intensity, ray and angle_deg, in order.
+                # Cartesian positioning used to remap the coordinates from ray and angle_deg
+                value = [int(stimulus["@final_intensity"]), float(stimulus["@ray"]), float(stimulus["@angle_deg"])]
                 xml_dict[key] = value
 
     sorted_xml_dict = dict(sorted(xml_dict.items()))
