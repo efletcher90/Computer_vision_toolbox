@@ -8,8 +8,11 @@ MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland M
 # Create list of projection.xml microperimetry data
 def get_mp_list():
     mp_list = []
+    # find all the scan folders within the root directory, then sort these and select only the latest scan to os.walk
+    folders = sorted([os.path.join(MP_DIR, name) for name in os.listdir(MP_DIR) if os.path.isdir(os.path.join(MP_DIR, name))])
+    f = folders[-1]
 
-    for dirpath, _, filenames in os.walk(MP_DIR):
+    for dirpath, _, filenames in os.walk(f):
         for xml_file in filenames:
             if xml_file.lower() == 'projection.xml':
                 mp_list.append(os.path.join(dirpath, xml_file))
@@ -21,8 +24,9 @@ def parse_mp_xml_data(xml_files):
     for x in xml_files:
         with open(x, "rb") as f:
             raw_bytes = f.read()
-            # print(f"Parsing: {x} -> {raw_bytes[:60]}")
             data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
+            # parsing the .xml structure for the stimulus id number and the corresponding intensity. For loop then assigns
+            # the final intensity to the id key
             stimuli = data["MitProjection"]["Stimuli"]["Stimulus"]
 
             for stimulus in stimuli:
