@@ -37,9 +37,9 @@ def parse_mp_xml_data(xml_files):
 
     sorted_xml_dict = dict(sorted(xml_dict.items()))
 
-    print(sorted_xml_dict)
+    # print(sorted_xml_dict)
     return sorted_xml_dict
 
 if __name__ == "__main__":
-    mp_list = get_mp_list()
-    parse_mp_xml_data(mp_list)
+    mp_files = get_mp_list()
+    parse_mp_xml_data(mp_files)
