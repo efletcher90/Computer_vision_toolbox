@@ -1,13 +1,9 @@
 import xmltodict
 import os
 
-from sympy.codegen.ast import continue_
-
-# use os.walk to go through subdirectories of MP_DIR and identify mask files that end with "_mask" and have a
-# lowercase accepted file type, before identifying the stem of the mask (i.e. file name w/o _mask and extension)
-# and getting the path of the image
-
+# --- File enums --- #
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
+# ------------------ #
 
 # Create list of projection.xml microperimetry data
 def get_mp_list():
