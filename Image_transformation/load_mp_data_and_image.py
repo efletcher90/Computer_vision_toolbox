@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 # wanted keys to patient metadata stored in 'projection.xml' dict
-METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY',
+METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix', 'examPRLY_pix',
                  'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix', 'fixationCenterX',
                  'fixationCenterY'
                  ]
@@ -84,13 +84,30 @@ class CreateMPDataDicts:
 
         return all_xml_data
 #
-# class CalculateStimCoordinates:
-#     def __init__(self, all_patient_data):
-#         self.data = all_patient_data
-#
-#     def load_patient_image(self):
+class CalculateStimCoordinates:
+    def __init__(self, patient_data):
+        self.patient_data = patient_data
 
+    def load_patient_image(self):
+        for patient in self.patient_data:
+            # open the scan image in GS, assign H and W (these should be 1536x1536 pixels - i.e. typical b-scan dims)
+            img_path = patient["scan_path"]
+            img = Image.open(img_path).convert("RGB")
+            W, H = img.size
 
+            # using the fieldDegreesX/Y values from the xml, scale the image
+            scaled_x = W / float(patient['fieldDegreesX'])
+            scaled_y = H / float(patient['fieldDegreesY'])
+
+            # using the baselinePRLX/Y_pix and baselineShiftX/Y, find the centre point of the image relative to the baseline image.
+            # For BL exams images, only the exam examPRLX_pix is used hree
+            exam_bl_id = patient['ExamBaselineID']
+            if exam_bl_id != "-1" or "0":
+                centre_x = W / 2 + patient["baselinePRLX_pix"] + patient["baselineShiftX_pix"]
+                centre_y = W / 2 + patient["baselinePRLY_pix"] + patient["baselineShiftY_pix"]
+            else:
+                centre_x = W / 2 + patient["examPRLX_pix"]
+                centre_y = W / 2 + patient["examPRLY_pix"]
 
 
     # def calculate_coordinate_pixels(self):
@@ -106,5 +123,5 @@ if __name__ == "__main__":
     mp_files, patient_id = xml_parser.get_mp_list()
     patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
 
-    # stim_coords = CalculateStimCoordinates(patient_data_dicts)
+    stim_coords = CalculateStimCoordinates(patient_data_dicts)
 
