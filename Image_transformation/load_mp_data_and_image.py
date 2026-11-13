@@ -97,8 +97,6 @@ class CreateMPDataDicts:
 
         return all_xml_data
 
-
-#
 class CalculateStimCoordinates:
     def __init__(self, patient_data):
         self.patient_data = patient_data
@@ -115,19 +113,32 @@ class CalculateStimCoordinates:
                 scale_x = W / float(patient['fieldDegreesX'])
                 scale_y = H / float(patient['fieldDegreesY'])
 
-                # using the baselinePRLX/Y_pix and baselineShiftX/Y, find the centre point of the image relative to the baseline image.
-                # For BL exams images, only the exam examPRLX_pix is used hree
-                exam_bl_id = patient['ExamBaselineID']
-                if exam_bl_id not in ("-1", "0", None):
-                    centre_x = W / 2.0 + float(patient["baselinePRLX_pix"]) + float(patient["baselineShiftX_pix"])
-                    centre_y = H / 2.0 - float(patient["baselinePRLY_pix"]) - float(patient["baselineShiftY_pix"])
-                else:
-                    centre_x = W / 2.0 + float(patient["examPRLX_pix"])
-                    centre_y = H / 2.0 - float(patient["examPRLY_pix"])
+                # # using the baselinePRLX/Y_pix and baselineShiftX/Y, find the centre point of the image relative to the baseline image.
+                # # For BL exams images, only the exam examPRLX_pix is used hree
+                # exam_bl_id = patient['ExamBaselineID']
+                # if exam_bl_id not in ("-1", "0", None):
+                #     centre_x = W / 2.0 + float(patient["baselinePRLX_pix"]) + float(patient["baselineShiftX_pix"])
+                #     centre_y = H / 2.0 - float(patient["baselinePRLY_pix"]) - float(patient["baselineShiftY_pix"])
+                # else:
+                #     centre_x = W / 2.0 + float(patient["examPRLX_pix"])
+                #     centre_y = H / 2.0 - float(patient["examPRLY_pix"])
+
+            centre_x = W / 2.0 + float(patient["examPRLX_pix"])
+            centre_y = H / 2.0 - float(patient["examPRLY_pix"])
 
             # apply the manual centre offset, if used
             centre_x += float(patient["fixationCenterX"]) * scale_x
             centre_y -= float(patient["fixationCenterY"]) * scale_y
+
+            # rotate the centre point to match the image rotation based on which eye it is
+            side = str(patient['Eye'].lower())
+            if side in ('left', 'l', 'os'):
+                rotation = 'ROTATE_90'
+                centre_x, centre_y = centre_y, W - centre_x
+            else:
+                rotation = 'ROTATE_270'
+                centre_x, centre_y = H - centre_y, centre_x
+            patient['rotation'] = rotation
 
             # loop through the stimulus IDs and corresponding intensities and define their x/y pixels based on ray and angle_deg values.
             # intensities, ray and angle_deg are stored in stimulus_xx dicts as a list (in that order).
@@ -183,11 +194,14 @@ class OverlayEllipsesToFundus:
             arr = np.array(img, dtype=np.uint16)
             arr = (arr >> 8).astype(np.uint8)
             img = Image.fromarray(arr)
+
             # make sure that the canvas is RGB, otherwise the circles won't be colour coded
             img = img.convert("RGB")
 
-            draw = ImageDraw.Draw(img)
+            # rotate image based on previously written left/right eye
+            img = img.transpose(getattr(Image.Transpose, patient['rotation']))
 
+            draw = ImageDraw.Draw(img)
             radius = 8
 
             # gather the calculated pixel and intensity info
