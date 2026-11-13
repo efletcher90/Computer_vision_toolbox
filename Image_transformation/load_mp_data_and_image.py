@@ -2,7 +2,8 @@ import xmltodict
 import os
 import time
 import math
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
+import numpy as np
 
 # --- Enums -------- #
 # dir for mp and oct data
@@ -143,6 +144,9 @@ class CalculateStimCoordinates:
                 # unpack the three data points from the nested list for each stim_key instance
                 final_intensity, ray, angle_deg = stim_vals
                 intensity = int(final_intensity)
+
+                # MAIA stores thresholds as negative values. Also, a positive value  of 1 means not seen
+                intensity = -1 if final_intensity > 0 else -final_intensity
                 ray = float(ray)
                 angle_rad = math.radians(float(angle_deg))
 
@@ -175,13 +179,19 @@ class OverlayEllipsesToFundus:
         for patient in self.patient_data:
             # open the scan image in RGB, assign H and W (these should be 1536x1536 pixels - i.e. typical b-scan dims)
             img_path = patient["scan_path"]
-            img = Image.open(img_path).convert("RGB")
+            img = Image.open(img_path)
+            arr = np.array(img, dtype=np.uint16)
+            arr = (arr >> 8).astype(np.uint8)
+            img = Image.fromarray(arr)
+            # make sure that the canvas is RGB, otherwise the circles won't be colour coded
+            img = img.convert("RGB")
+
             draw = ImageDraw.Draw(img)
 
-            radius = 12
+            radius = 8
 
             # gather the calculated pixel and intensity info
-            for stim in patient.get("computed_stimuli", []):
+            for stim in patient.get("computed_stim_values", []):
                 px_x = stim["px_x"]
                 px_y = stim["px_y"]
                 intensity = stim["intensity"]
@@ -201,7 +211,8 @@ class OverlayEllipsesToFundus:
 
             p_id = patient.get("patient_id")
             exam_id = patient.get("ExamID")
-            save_path = os.path.join(output_dir, f"{p_id}_{exam_id}_overlay.png")
+            eye = patient.get("Eye")
+            save_path = os.path.join(output_dir, f"{p_id}_{exam_id}_{eye}Eye_overlay.png")
 
             print(f"Saved: {save_path}")
             img.save(save_path)
@@ -219,3 +230,4 @@ if __name__ == "__main__":
 
     overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
     saved_folder = overlay.draw_overlays()
+
