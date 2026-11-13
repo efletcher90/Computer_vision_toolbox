@@ -1,5 +1,7 @@
 import xmltodict
 import os
+import math
+from PIL import Image, ImageDraw, ImageFont
 
 # --- Enums -------- #
 # dir for mp and oct data
@@ -31,9 +33,16 @@ class CreateMPDataDicts:
         p_id = os.path.basename(f).split("_")[0]
 
         for dirpath, _, filenames in os.walk(f):
-            for xml_file in filenames:
-                if xml_file.lower() == 'projection.xml':
-                    mp_list.append(os.path.join(dirpath, xml_file))
+            # gather lower case filenames in folder
+            filenames = {files.lower(): files for files in filenames}
+
+            if 'projection.xml' in filenames:
+                xml_path = os.path.join(dirpath, filenames['projection.xml'])
+
+                png_name = filenames.get('stillpicture.png')
+                png_path = os.path.join(dirpath, png_name)
+
+                mp_list.append({'xml_file': xml_path, 'scan_img': png_path})
 
         return mp_list, p_id
 
@@ -41,10 +50,13 @@ class CreateMPDataDicts:
         all_xml_data = []
 
         for x in xml_files:
+            xml_path = x['xml_file']
+            png_path = x['scan_img']
+
             xml_dict = {}
             stim_dict = {}
 
-            with open(x, "rb") as f:
+            with open(xml_path, "rb") as f:
                 # read xml as raw bytes, convert to dict
                 raw_bytes = f.read()
                 mp_data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
@@ -62,7 +74,7 @@ class CreateMPDataDicts:
             sorted_stim_dict = dict(sorted(stim_dict.items()))
 
             # add patient metadata k:v pairs to xml_dict
-            xml_dict.update({'patient_id': p_id})
+            xml_dict.update({'patient_id': p_id, 'scan_path': png_path})
             m_data = mp_data["MitProjection"]["Header"]
             xml_dict.update({k: m_data[k] for k in self.metadata_keys if k in m_data})
             # the sorted stim data is added after the patient metadata so that the original order of the enum list is kept at the start of the dict
@@ -71,12 +83,19 @@ class CreateMPDataDicts:
             all_xml_data.append(xml_dict)
 
         return all_xml_data
-
+#
 # class CalculateStimCoordinates:
-#     def __init__(self):
+#     def __init__(self, all_patient_data):
+#         self.data = all_patient_data
+#
+#     def load_patient_image(self):
 
 
 
+
+    # def calculate_coordinate_pixels(self):
+    #
+    # def map_stim_ellipses(self ):
 
 # class OverlayValuesToFundus:
 #     def __init__(self):
@@ -86,3 +105,6 @@ if __name__ == "__main__":
 
     mp_files, patient_id = xml_parser.get_mp_list()
     patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
+
+    # stim_coords = CalculateStimCoordinates(patient_data_dicts)
+
