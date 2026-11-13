@@ -3,6 +3,11 @@ import os
 
 # --- File enums --- #
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
+# --- k:v pairs needed from the xml file; nested under MitProjections>Header --- #
+METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY',
+                 'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix', 'fixationCenterX',
+                 'fixationCenterY'
+                 ]
 # ------------------ #
 
 # Create list of projection.xml microperimetry data
@@ -22,8 +27,7 @@ def get_mp_list():
 
 def parse_mp_xml_data(xml_files, p_id):
     xml_dict = {}
-    patient_key = f"patient_id"
-    xml_dict[patient_key] = p_id
+    stim_dict = {}
 
     for x in xml_files:
         with open(x, "rb") as f:
@@ -39,12 +43,18 @@ def parse_mp_xml_data(xml_files, p_id):
                 # values are a list of intensity, ray and angle_deg, in order.
                 # Cartesian positioning used to remap the coordinates from ray and angle_deg
                 stim_value = [int(stimulus_id["@final_intensity"]), float(stimulus_id["@ray"]), float(stimulus_id["@angle_deg"])]
-                xml_dict[stim_key] = stim_value
+                stim_dict[stim_key] = stim_value
 
-            # stimulus_data = mp_data["MitProjection"]["Stimuli"]["Stimulus"]
+    sorted_stim_dict = dict(sorted(stim_dict.items()))
 
-    sorted_xml_dict = dict(sorted(xml_dict.items()))
-    return sorted_xml_dict
+    # add patient metadata k:v pairs to xml_dict
+    xml_dict.update({'patient_id': p_id})
+    m_data = mp_data["MitProjection"]["Header"]
+    xml_dict.update({k: m_data[k] for k in METADATA_KEYS if k in m_data})
+    # the sorted stim data is added after the patient metadata so that the original order of the enum list is kept at the start of the dict
+    xml_dict.update(sorted_stim_dict)
+
+    return xml_dict
 
 if __name__ == "__main__":
     mp_files, patient_id = get_mp_list()
