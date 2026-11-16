@@ -2,9 +2,9 @@ import xmltodict
 import os
 import time
 import math
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, _test_grid_centres
+from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, AAVB_FONT, _test_grid_centres
 
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -86,21 +86,18 @@ class CalculateStimCoordinates:
             img_path = patient["scan_path"]
 
             with Image.open(img_path) as img:
-                W, H = img.size
+                width, height = img.size
 
                 # using the fieldDegreesX/Y values from the xml, get the image scale
-                scale_x = W / float(patient['fieldDegreesX'])
-                scale_y = H / float(patient['fieldDegreesY'])
+                scale_x = width / float(patient['fieldDegreesX'])
+                scale_y = height / float(patient['fieldDegreesY'])
 
                 # grid centre, in the rotated (PDF) orientation
                 # OS images appear to have the grid sitting at the 'baseline PRL' (0,0 for baseline exams). OD not so.
-                centre_x, centre_y = W / 2.0, H / 2.0
+                centre_x, centre_y = width / 2.0, height / 2.0
                 if str(patient['Eye']).strip().lower() in ('left', 'l', 'os'):
                     centre_x += float(patient["baselinePRLX_pix"])
                     centre_y += float(patient["baselinePRLY_pix"])
-
-            centre_x = W / 2.0 + float(patient["examPRLX_pix"])
-            centre_y = H / 2.0 - float(patient["examPRLY_pix"])
 
             # apply the manual centre offset, if used... seemingly not used in the xml files I have
             centre_x += float(patient["fixationCenterX"]) * scale_x
@@ -121,7 +118,6 @@ class CalculateStimCoordinates:
 
                 # unpack the three data points from the nested list for each stim_key instance
                 final_intensity, ray, angle_deg = stim_vals
-                intensity = int(final_intensity)
 
                 # MAIA stores thresholds as negative values. Also, a positive value  of 1 means not seen
                 intensity = -1 if final_intensity > 0 else -final_intensity
@@ -193,7 +189,12 @@ class OverlayEllipsesToFundus:
             p_id = patient.get("patient_id")
             exam_id = patient.get("ExamID")
             eye = patient.get("Eye")
-            save_path = os.path.join(output_dir, f"{p_id}_{exam_id}_{eye}Eye_overlay.png")
+
+            # add image identifier and save in output directory
+            image_name = f"{p_id}_{exam_id}_{eye}"
+            font = ImageFont.truetype(AAVB_FONT, 36)
+            draw.text((1004, 20), image_name, fill="#FFFFFF", anchor="ra", font=font)
+            save_path = os.path.join(output_dir, f"{image_name}Eye_overlay.png")
 
             print(f"Saved: {save_path}")
             img.save(save_path)
