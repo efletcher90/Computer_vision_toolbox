@@ -30,7 +30,7 @@ class FundusRegistrator:
     def match_oct_with_mp(self, mp_data, oct_list):
 
 
-    def run(self, mp_data):
+    # def run(self, mp_data):
 
 
 
