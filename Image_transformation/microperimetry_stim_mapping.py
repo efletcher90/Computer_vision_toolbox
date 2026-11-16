@@ -4,29 +4,8 @@ import time
 import math
 from PIL import Image, ImageDraw
 import numpy as np
+from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, _test_grid_centres
 
-# --- Enums -------- #
-# dir for mp and oct data
-MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
-OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
-# wanted keys to patient metadata stored in 'projection.xml' dict
-METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
-                 'examPRLY_pix',
-                 'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix', 'fixationCenterX',
-                 'fixationCenterY'
-                 ]
-# microperimetry db colour values, as shown in pdf files
-DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E5C', '3': '#C41E40', '4': '#E11E27',
-                    '5': '#EE2025', '6': '#EE2125', '7': '#EE2524', '8': '#EF2924', '9': '#EF3024', '10': '#EF3723',
-                    '11': '#F04022', '12': '#F04922', '13': '#F05122', '14': '#F15C23', '15': '#F16623',
-                    '16': '#F46F23', '17': '#F47722', '18': '#F68D1F', '19': '#FAA21C', '20': '#FEB714',
-                    '21': '#FDCC10', '22': '#F3EC0C', '23': '#E4E518', '24': '#D3DE25', '25': '#BCD531',
-                    '26': '#A3CD3A', '27': '#8AC53F', '28': '#73BF43', '29': '#59BA46', '30': '#43B648',
-                    '31': '#31B349', '32': '#27B24A', '33': '#1DAE4A', '34': '#16A649', '35': '#119C48',
-                    '36': '#0E9245'}
-
-
-# ------------------ #
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
         self.mp_dir = mp_dir
@@ -113,32 +92,19 @@ class CalculateStimCoordinates:
                 scale_x = W / float(patient['fieldDegreesX'])
                 scale_y = H / float(patient['fieldDegreesY'])
 
-                # # using the baselinePRLX/Y_pix and baselineShiftX/Y, find the centre point of the image relative to the baseline image.
-                # # For BL exams images, only the exam examPRLX_pix is used hree
-                # exam_bl_id = patient['ExamBaselineID']
-                # if exam_bl_id not in ("-1", "0", None):
-                #     centre_x = W / 2.0 + float(patient["baselinePRLX_pix"]) + float(patient["baselineShiftX_pix"])
-                #     centre_y = H / 2.0 - float(patient["baselinePRLY_pix"]) - float(patient["baselineShiftY_pix"])
-                # else:
-                #     centre_x = W / 2.0 + float(patient["examPRLX_pix"])
-                #     centre_y = H / 2.0 - float(patient["examPRLY_pix"])
+                # grid centre, in the rotated (PDF) orientation
+                # OS images appear to have the grid sitting at the 'baseline PRL' (0,0 for baseline exams). OD not so.
+                centre_x, centre_y = W / 2.0, H / 2.0
+                if str(patient['Eye']).strip().lower() in ('left', 'l', 'os'):
+                    centre_x += float(patient["baselinePRLX_pix"])
+                    centre_y += float(patient["baselinePRLY_pix"])
 
             centre_x = W / 2.0 + float(patient["examPRLX_pix"])
             centre_y = H / 2.0 - float(patient["examPRLY_pix"])
 
-            # apply the manual centre offset, if used
+            # apply the manual centre offset, if used... seemingly not used in the xml files I have
             centre_x += float(patient["fixationCenterX"]) * scale_x
             centre_y -= float(patient["fixationCenterY"]) * scale_y
-
-            # rotate the centre point to match the image rotation based on which eye it is
-            side = str(patient['Eye'].lower())
-            if side in ('left', 'l', 'os'):
-                rotation = 'ROTATE_90'
-                centre_x, centre_y = centre_y, W - centre_x
-            else:
-                rotation = 'ROTATE_270'
-                centre_x, centre_y = H - centre_y, centre_x
-            patient['rotation'] = rotation
 
             # loop through the stimulus IDs and corresponding intensities and define their x/y pixels based on ray and angle_deg values.
             # intensities, ray and angle_deg are stored in stimulus_xx dicts as a list (in that order).
@@ -148,6 +114,7 @@ class CalculateStimCoordinates:
             for stim_keys, stim_vals in patient.items():
                 if not stim_keys.startswith('stimulus_'):
                     continue
+
                 # found out that data for stimulus_00 is actually not used and is the measure of the ONH
                 if stim_keys == "stimulus_00":
                     continue
@@ -199,7 +166,7 @@ class OverlayEllipsesToFundus:
             img = img.convert("RGB")
 
             # rotate image based on previously written left/right eye
-            img = img.transpose(getattr(Image.Transpose, patient['rotation']))
+            img = img.transpose(Image.Transpose.ROTATE_90)
 
             draw = ImageDraw.Draw(img)
             radius = 8
@@ -240,6 +207,11 @@ if __name__ == "__main__":
     patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
 
     calculator = CalculateStimCoordinates(patient_data_dicts)
+
+    # This call is used to check for the centre grid points on
+    # for patient in patient_data_dicts:
+    #     _test_grid_centres(patient)
+
     data_with_coords = calculator.calculate_coordinate_pixels()
 
     overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
