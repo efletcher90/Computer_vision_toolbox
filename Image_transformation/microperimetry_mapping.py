@@ -4,7 +4,9 @@ import time
 import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, AAVB_FONT, _test_grid_centres
+from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, AAVB_FONT,
+                                                       _test_grid_centres, _to_uint8
+                                                       )
 
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -155,7 +157,7 @@ class OverlayEllipsesToFundus:
             img_path = patient["scan_path"]
             img = Image.open(img_path)
             arr = np.array(img, dtype=np.uint16)
-            arr = (arr >> 8).astype(np.uint8)
+            _to_uint8(arr)
             img = Image.fromarray(arr)
 
             # make sure that the canvas is RGB, otherwise the circles won't be colour coded

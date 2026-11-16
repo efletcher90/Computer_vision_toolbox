@@ -1,7 +1,9 @@
 import os
 import numpy as np
 import PIL.Image as Image
+from PIL import ImageDraw
 import math
+import cv2
 
 # --- Enums -------- #
 # dir for mp and oct data
@@ -26,6 +28,7 @@ DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E
                     '36': '#0E9245'}
 
 # ------------------ #
+# helper functions. These have been separated for Class tidiness
 
 def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     os.makedirs(out_dir, exist_ok=True)
@@ -44,13 +47,13 @@ def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     }
     arr = np.array(Image.open(patient["scan_path"]), dtype=np.uint16)
     base = Image.fromarray((arr >> 8).astype(np.uint8)).convert("RGB")
-    W, H = base.size
-    scale = W / g("fieldDegreesX")
+    width, height = base.size
+    scale = width / g("fieldDegreesX")
 
     for name, (dx, dy) in candidates.items():
         for ysign, ylabel in ((-1, "yup"), (1, "ydown")):
-            cx, cy = W / 2 + dx, H / 2 + ysign * dy
-            cx, cy = cy, W - cx                      # rotate centre to match ROTATE_90
+            cx, cy = width / 2 + dx, height / 2 + ysign * dy
+            cx, cy = cy, width - cx                      # rotate centre to match ROTATE_90
             img = base.transpose(Image.Transpose.ROTATE_90)
             draw = ImageDraw.Draw(img)
             for k, v in patient.items():
@@ -65,3 +68,16 @@ def _test_grid_centres(patient, out_dir="grid_centre_tests"):
                 draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=col)
 
             img.save(os.path.join(out_dir, f"{patient.get('ExamID')}_{name}_{ylabel}.png"))
+
+def _to_uint8(img):
+    # converts any 16-bit images to 8-bit. 8-bit images are left out
+    return (img >> 8).astype(np.uint8) if img.dtype == np.uint16 else img
+
+def _to_gray(img):
+    # unless the image has only two dimensions, it creates the image GS
+    return img if img.ndim == 2 else img[..., 1]
+
+def _red_cyan(oct_img, mp_img):
+    # The fixed slo scan in red and the moving/transforming MP image in cyan
+    mp_img = cv2.resize(mp_img, oct_img.shape[::-1])
+    return np.dstack([oct_img, mp_img, mp_img])

@@ -31,6 +31,8 @@ class FundusRegistrator:
 
         return oct_list
 
+
+
 if __name__ == "__main__":
     registrator = FundusRegistrator(OCT_DIR)
     fundus_list = registrator.get_slo_list()
@@ -47,20 +49,7 @@ if __name__ == "__main__":
 
 
 
-# def to_uint8(img):
-#     """16-bit -> 8-bit; leaves 8-bit images alone."""
-#     return (img >> 8).astype(np.uint8) if img.dtype == np.uint16 else img
-#
-#
-# def to_gray(img):
-#     """Single channel; uses green for colour images, as the registration preprocessing does."""
-#     return img if img.ndim == 2 else img[..., 1]
-#
-#
-# def red_cyan(fixed, moving):
-#     """Fixed image in red, moving image in cyan. Where vessels align they look grey/white."""
-#     moving = cv2.resize(moving, fixed.shape[::-1])
-#     return np.dstack([fixed, moving, moving])
+
 #
 #
 # # --- load ---
