@@ -1,9 +1,5 @@
-import numpy as np
-import cv2
-from matplotlib import pyplot as plt
-from rtnls_registration import Registration, open_image
 import os
-from Image_transformation.mp_oct_enums_helpers import OCT_DIR
+from mp_oct_enums_helpers import OCT_DIR
 
 class FundusRegistrator:
     def __init__(self, oct_dir):
@@ -31,31 +27,22 @@ class FundusRegistrator:
 
         return oct_list
 
+    def match_oct_with_mp(self, mp_data, oct_list):
+
+
+    def run(self, mp_data):
+
 
 
 if __name__ == "__main__":
-    registrator = FundusRegistrator(OCT_DIR)
-    fundus_list = registrator.get_slo_list()
+
+    # QC check for SLO images and fundus list, entry point only accessible here
+    oct_parser = FundusRegistrator(OCT_DIR)
+    fundus_list = oct_parser.get_slo_list()
 
     for fundus in fundus_list:
         print(fundus)
 
-
-
-
-
-
-
-
-
-
-
-#
-#
-# # --- load ---
-# mp_img = to_uint8(open_image(r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\sandbox\3678_MP.png'))
-# slo_img = to_uint8(open_image(r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\sandbox\3678_SLO.tif'))
-#
 # # MAIA stills are stored rotated 90° from the report view. np.rot90(k=1) = PIL ROTATE_90 (anticlockwise).
 # # Remove this line if 3678_MP.png has already been rotated.
 # # mp_img = np.ascontiguousarray(np.rot90(mp_img, k=1))

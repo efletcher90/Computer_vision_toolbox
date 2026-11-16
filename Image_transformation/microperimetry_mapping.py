@@ -5,8 +5,7 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, AAVB_FONT,
-                                                       _test_grid_centres, _to_uint8
-                                                       )
+                                                       _to_uint8)
 
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -157,7 +156,7 @@ class OverlayEllipsesToFundus:
             img_path = patient["scan_path"]
             img = Image.open(img_path)
             arr = np.array(img, dtype=np.uint16)
-            _to_uint8(arr)
+            arr= _to_uint8(arr)
             img = Image.fromarray(arr)
 
             # make sure that the canvas is RGB, otherwise the circles won't be colour coded
@@ -202,21 +201,3 @@ class OverlayEllipsesToFundus:
             img.save(save_path)
 
         return output_dir
-
-if __name__ == "__main__":
-    xml_parser = CreateMPDataDicts(MP_DIR, METADATA_KEYS)
-
-    mp_files, patient_id = xml_parser.get_mp_list()
-    patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
-
-    calculator = CalculateStimCoordinates(patient_data_dicts)
-
-    # This call is used to check for the centre grid points on
-    # for patient in patient_data_dicts:
-    #     _test_grid_centres(patient)
-
-    data_with_coords = calculator.calculate_pixel_coordinates()
-
-    overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
-    saved_folder = overlay.draw_overlays()
-

@@ -30,6 +30,7 @@ DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E
 # ------------------ #
 # helper functions. These have been separated for Class tidiness
 
+#to QC check the overlay of mp stim points and the png still image provided. Compare to the pdfs in the respective folders
 def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     os.makedirs(out_dir, exist_ok=True)
     g = lambda k: float(patient.get(k, 0))
@@ -81,3 +82,12 @@ def _red_cyan(oct_img, mp_img):
     # The fixed slo scan in red and the moving/transforming MP image in cyan
     mp_img = cv2.resize(mp_img, oct_img.shape[::-1])
     return np.dstack([oct_img, mp_img, mp_img])
+
+def _normalise_eye(eye):
+    # Standardises either OS/OD or left/right across the datasets/images
+    e = str(eye).strip().lower()
+    if e in ('left', 'l', 'os'):
+        return 'L'
+    if e in ('right', 'r', 'od'):
+        return 'R'
+    return e
