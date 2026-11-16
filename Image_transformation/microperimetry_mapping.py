@@ -80,7 +80,7 @@ class CalculateStimCoordinates:
     def __init__(self, patient_data):
         self.patient_data = patient_data
 
-    def calculate_coordinate_pixels(self):
+    def calculate_pixel_coordinates(self):
         for patient in self.patient_data:
             # check and find dims of scan image (these should be 1536x1536 pixels - i.e. typical b-scan dims)
             img_path = patient["scan_path"]
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     # for patient in patient_data_dicts:
     #     _test_grid_centres(patient)
 
-    data_with_coords = calculator.calculate_coordinate_pixels()
+    data_with_coords = calculator.calculate_pixel_coordinates()
 
     overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
     saved_folder = overlay.draw_overlays()
