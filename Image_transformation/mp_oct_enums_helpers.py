@@ -92,18 +92,13 @@ def _normalise_eye(eye):
         return 'R'
     return e
 
-def _number_multiple_recordings_in_visit(p_data, visit_times=('Baseline', 'Month6', 'Month12', 'Month18',)):
-    # where a visit has more than one recording per eye a number suffix in date order (e.g. Baseline1, Baseline2)
-    group_sizes = {}
-    for patient in p_data:
-        key = (patient['patient_id'], patient['Eye'], patient['timepoint'])
-        group_sizes[key] = group_sizes.get(key, 0) + 1
-
+def _number_multiple_recordings_in_visit(p_data):
+    # mp data can have 2 recordings per eye at a visit (e.g. 2 baselines).
+    # Store a sequential number (e.g. 1, 2), in date order, as under 'repeat' key,
     counts = {}
     for patient in sorted(p_data, key=lambda d: d['DateTime']):
         key = (patient['patient_id'], patient['Eye'], patient['timepoint'])
-        if patient['timepoint'] in visit_times and group_sizes[key] > 1:
-            counts[key] = counts.get(key, 0) + 1
-            patient['timepoint'] = f"{patient['timepoint']}_{counts[key]}"
+        counts[key] = counts.get(key, 0) + 1
+        patient['repeat'] = counts[key]
 
     return p_data

@@ -46,27 +46,31 @@ class FundusRegistrator:
         oct_mp_pairs = []
 
         for patient in patient_data:
+            # only use the second baseline recording for each eye in the folder--- will need to confirm that this is fine later
+            if patient['timepoint'].lower() == 'baseline' and patient['repeat'] == 1:
+                continue
+
             eye = _normalise_eye(patient['Eye'])
             timepoint = patient['timepoint'].lower()
 
             matches = [img for img in scan_imgs if img['patient_id'] == patient['patient_id']
-                        and img['exam_time'].lower() == timepoint and _normalise_eye(img['eye']) == eye]
+                       and img['exam_time'].lower() == timepoint and _normalise_eye(img['eye']) == eye]
 
             if not matches:
-                print(f"{patient['patient_id']}_{patient['ExamID']}: no OCT SLO found for {eye} eye at {patient['timepoint']}")
+                print(
+                    f"{patient['patient_id']}_{patient['ExamID']}: no OCT SLO found for {eye} eye at {patient['timepoint']}")
                 continue
 
-
-            slo_imgs = matches[0]
+            slo = matches[0]
             oct_mp_pairs.append({'patient_id': patient['patient_id'],
                                  'exam_id': patient['ExamID'],
                                  'eye': patient['Eye'],
                                  'timepoint': patient['timepoint'],
                                  'mp_still': patient['scan_path'],
                                  'stimuli': patient['computed_stim_values'],
-                                 'slo_file': slo_imgs['slo_fundus_file'],
-                                 'ez_rpe_map': slo_imgs['ez_rpe_map'],
-                                 'rpe_bm_map': slo_imgs['rpe_bm_map']})
+                                 'slo_file': slo['slo_fundus_file'],
+                                 'ez_rpe_map': slo['ez_rpe_map'],
+                                 'rpe_bm_map': slo['rpe_bm_map']})
 
         return oct_mp_pairs
 

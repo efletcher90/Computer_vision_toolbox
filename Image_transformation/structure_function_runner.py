@@ -28,7 +28,6 @@ def main(test_grid_centres_flag=False):
         print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->',
               os.path.basename(match['slo_file']))
 
-
     # Need to transform the stimulation sites based on the registration -- so the method in the call below needs changing
     overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
     mp_saved_folder = overlay.draw_overlays()
