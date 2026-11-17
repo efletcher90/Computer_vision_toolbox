@@ -37,7 +37,7 @@ def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     candidates = {
         "image_centre":   (0, 0),
         "bl_prl":         (g("baselinePRLX_pix"), g("baselinePRLY_pix")),
-        "bl_prl_minus_sh":(g("baselinePRLX_pix") - g("baselineShiftX_pix"),
+        "bl_prl_minus_shift":(g("baselinePRLX_pix") - g("baselineShiftX_pix"),
                            g("baselinePRLY_pix") - g("baselineShiftY_pix")),
         "exam_prl":       (g("examPRLX_pix"), g("examPRLY_pix")),
         "bl_prl_xflip":   (-g("baselinePRLX_pix"), g("baselinePRLY_pix")),
@@ -91,3 +91,19 @@ def _normalise_eye(eye):
     if e in ('right', 'r', 'od'):
         return 'R'
     return e
+
+def _number_multiple_recordings_in_visit(p_data, visit_times=('Baseline', 'Month6', 'Month12', 'Month18',)):
+    # where a visit has more than one recording per eye a number suffix in date order (e.g. Baseline1, Baseline2)
+    group_sizes = {}
+    for patient in p_data:
+        key = (patient['patient_id'], patient['Eye'], patient['timepoint'])
+        group_sizes[key] = group_sizes.get(key, 0) + 1
+
+    counts = {}
+    for patient in sorted(p_data, key=lambda d: d['DateTime']):
+        key = (patient['patient_id'], patient['Eye'], patient['timepoint'])
+        if patient['timepoint'] in visit_times and group_sizes[key] > 1:
+            counts[key] = counts.get(key, 0) + 1
+            patient['timepoint'] = f"{patient['timepoint']}_{counts[key]}"
+
+    return p_data

@@ -1,5 +1,6 @@
 import xmltodict
 import os
+import re
 import time
 import math
 from PIL import Image, ImageDraw, ImageFont
@@ -15,26 +16,39 @@ class CreateMPDataDicts:
     # Create list of 'projection.xml' microperimetry datafiles
     def get_mp_list(self):
         mp_list = []
+        seen_exams = set()
 
-        # find all the scan folders within the root directory, then sort these and select only the latest scan to os.walk
-        # (all previous exams are saved in the latest folder)
+        # find all the scan folders within the root directory, sorted by visit number (e.g. V1 - V5).
+        # each export holds all exams up to that visit, so an exam's own visit is the first folder it appears in
+
         folders = sorted([os.path.join(self.mp_dir, name) for name in os.listdir(self.mp_dir) if
-                          os.path.isdir(os.path.join(self.mp_dir, name)) and not name.startswith("overlays_")])
-        f = folders[-1]
+                          os.path.isdir(os.path.join(self.mp_dir, name)) and not name.startswith("overlays_")],
+                         key=lambda f: int(re.search(r'_V(\d+)', os.path.basename(f)).group(1)))
+
         # get the patient id from the file basename, just split at the first underscore. This is then assigned to the final dict
-        p_id = os.path.basename(f).split("_")[0]
+        p_id = os.path.basename(folders[-1]).split("_")[0]
+        for f in folders:
+            for dirpath, _, filenames in os.walk(f):
+                # gather lower case filenames in folder
+                filenames = {files.lower(): files for files in filenames}
 
-        for dirpath, _, filenames in os.walk(f):
-            # gather lower case filenames in folder
-            filenames = {files.lower(): files for files in filenames}
+                if 'projection.xml' in filenames:
+                    # exam folder is named with the ExamID. skip it if already found in an earlier visit
+                    exam_id = os.path.basename(dirpath)
+                    if exam_id in seen_exams:
+                        continue
+                    seen_exams.add(exam_id)
 
-            if 'projection.xml' in filenames:
-                xml_path = os.path.join(dirpath, filenames['projection.xml'])
+                    # get timepoint from the path, e.g. ...\V5-Month18\... is 'Month18'
+                    match = re.search(r'_V\d+-([^\\/]+)', dirpath)
+                    visit_timepoint = match.group(1) if match else None
 
-                png_name = filenames.get('stillpicture.png')
-                png_path = os.path.join(dirpath, png_name)
+                    xml_path = os.path.join(dirpath, filenames['projection.xml'])
 
-                mp_list.append({'xml_file': xml_path, 'scan_img': png_path})
+                    png_name = filenames.get('stillpicture.png')
+                    png_path = os.path.join(dirpath, png_name)
+
+                    mp_list.append({'xml_file': xml_path, 'scan_img': png_path, 'timepoint': visit_timepoint})
 
         return mp_list, p_id
 
@@ -44,12 +58,13 @@ class CreateMPDataDicts:
         for x in xml_files:
             xml_path = x['xml_file']
             png_path = x['scan_img']
+            timepoint = x['timepoint']
 
             xml_dict = {}
             stim_dict = {}
 
             with open(xml_path, "rb") as f:
-                # read xml as raw bytes, convert to dict
+                # read xml as raw bytes ("rb"), then convert to dict w/ xmltodict
                 raw_bytes = f.read()
                 mp_data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
 
@@ -67,7 +82,7 @@ class CreateMPDataDicts:
             sorted_stim_dict = dict(sorted(stim_dict.items()))
 
             # add patient metadata k:v pairs to xml_dict
-            xml_dict.update({'patient_id': p_id, 'scan_path': png_path})
+            xml_dict.update({'patient_id': p_id, 'scan_path': png_path, 'timepoint':timepoint})
             m_data = mp_data["MitProjection"]["Header"]
             xml_dict.update({k: m_data[k] for k in self.metadata_keys if k in m_data})
             # the sorted stim data is added after the patient metadata so that the original order of the enum list is kept at the start of the dict
@@ -93,7 +108,7 @@ class CalculateStimCoordinates:
                 scale_x = width / float(patient['fieldDegreesX'])
                 scale_y = height / float(patient['fieldDegreesY'])
 
-                # grid centre, in the rotated (PDF) orientation
+                # find grid centre then...
                 # OS images appear to have the grid sitting at the 'baseline PRL' (0,0 for baseline exams). OD not so.
                 centre_x, centre_y = width / 2.0, height / 2.0
                 if str(patient['Eye']).strip().lower() in ('left', 'l', 'os'):
@@ -120,7 +135,7 @@ class CalculateStimCoordinates:
                 # unpack the three data points from the nested list for each stim_key instance
                 final_intensity, ray, angle_deg = stim_vals
 
-                # MAIA stores thresholds as negative values. Also, a positive value  of 1 means not seen
+                # MAIA stores thresholds as negative values. Also, a positive value of 1 means not seen
                 intensity = -1 if final_intensity > 0 else -final_intensity
                 ray = float(ray)
                 angle_rad = math.radians(float(angle_deg))

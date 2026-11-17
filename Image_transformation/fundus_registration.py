@@ -1,9 +1,10 @@
 import os
-from mp_oct_enums_helpers import OCT_DIR
+from mp_oct_enums_helpers import OCT_DIR, _normalise_eye
 
 class FundusRegistrator:
-    def __init__(self, oct_dir):
+    def __init__(self, patient_data_dicts, oct_dir):
         self.oct_dir = oct_dir
+        self.patient_data = patient_data_dicts
 
     # Create list of the SLO tifs during OCT imaging
     def get_slo_list(self):
@@ -17,18 +18,57 @@ class FundusRegistrator:
                 # gather lower case filenames in folder
                 filenames = {files.lower(): files for files in filenames}
 
+                fundus_path = ez_rpe_path = rpe_bm_path = slo_name = None
+
                 for file in filenames:
                     if file.endswith('slo.tif'):
-                        fundus_path = os.path.join(dirpath, file)
+                        slo_name = filenames[file]
+                        fundus_path = os.path.join(dirpath, slo_name)
+                    elif file.endswith('ez_rpe_minus_fluid_map.png'):
+                        ez_rpe_path = os.path.join(dirpath, filenames[file])
+                    elif file.endswith('rpe_bm_map.png'):
+                        rpe_bm_path = os.path.join(dirpath, filenames[file])
 
-                        p_id, exam_time, eye = file.split('_')[:3]
+                # once every file in the folder has been checked, add an entry if it has an SLO image
+                if fundus_path:
+                    p_id, exam_time, eye = slo_name.split('_')[:3]
 
-                        oct_list.append({'fundus_file': fundus_path, 'patient_id': p_id, 'exam_time': exam_time,'eye': eye})
-
+                    oct_list.append({'slo_fundus_file': fundus_path,
+                                     'ez_rpe_map': ez_rpe_path,
+                                     'rpe_bm_map': rpe_bm_path,
+                                     'patient_id': p_id,
+                                     'exam_time': exam_time,
+                                     'eye': eye}
+                                    )
         return oct_list
 
-    def match_oct_with_mp(self, mp_data, oct_list):
+    def match_oct_with_mp(self, patient_data, scan_imgs):
+        oct_mp_pairs = []
 
+        for patient in patient_data:
+            eye = _normalise_eye(patient['Eye'])
+            timepoint = patient['timepoint'].lower()
+
+            matches = [img for img in scan_imgs if img['patient_id'] == patient['patient_id']
+                        and img['exam_time'].lower() == timepoint and _normalise_eye(img['eye']) == eye]
+
+            if not matches:
+                print(f"{patient['patient_id']}_{patient['ExamID']}: no OCT SLO found for {eye} eye at {patient['timepoint']}")
+                continue
+
+
+            slo_imgs = matches[0]
+            oct_mp_pairs.append({'patient_id': patient['patient_id'],
+                                 'exam_id': patient['ExamID'],
+                                 'eye': patient['Eye'],
+                                 'timepoint': patient['timepoint'],
+                                 'mp_still': patient['scan_path'],
+                                 'stimuli': patient['computed_stim_values'],
+                                 'slo_file': slo_imgs['slo_fundus_file'],
+                                 'ez_rpe_map': slo_imgs['ez_rpe_map'],
+                                 'rpe_bm_map': slo_imgs['rpe_bm_map']})
+
+        return oct_mp_pairs
 
     # def run(self, mp_data):
 
