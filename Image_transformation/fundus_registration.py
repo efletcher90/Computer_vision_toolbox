@@ -1,5 +1,7 @@
 import os
-from mp_oct_enums_helpers import OCT_DIR, _normalise_eye
+from PIL import Image
+import matplotlib as plt
+from mp_oct_enums_helpers import _normalise_eye, _to_gray, _red_cyan, _to_uint8
 
 class FundusRegistrator:
     def __init__(self, patient_data_dicts, oct_dir):
@@ -74,18 +76,16 @@ class FundusRegistrator:
 
         return oct_mp_pairs
 
-    # def run(self, mp_data):
+    def mp_oct_registration(self, img_pairs):
+        for img in img_pairs:
+            # all images from MP need rotating 90 CCW
+            mp_img = img['mp_still'].transpose(Image.Transpose.ROTATE_90)
+            slo_img = img['slo_file']
 
-
-
-if __name__ == "__main__":
-
-    # QC check for SLO images and fundus list, entry point only accessible here
-    oct_parser = FundusRegistrator(OCT_DIR)
-    fundus_list = oct_parser.get_slo_list()
-
-    for fundus in fundus_list:
-        print(fundus)
+            plt.imshow(_red_cyan(_to_gray(slo_img), _to_gray(mp_img)))
+            plt.title('Before registration')
+            plt.axis('off')
+            plt.show()
 
 # # MAIA stills are stored rotated 90° from the report view. np.rot90(k=1) = PIL ROTATE_90 (anticlockwise).
 # # Remove this line if 3678_MP.png has already been rotated.

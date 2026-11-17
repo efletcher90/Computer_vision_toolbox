@@ -18,7 +18,6 @@ def main(test_grid_centres_flag=False):
         for patient in patient_data_dicts:
             _test_grid_centres(patient)
 
-
     oct_parser = FundusRegistrator(data_with_coords, OCT_DIR)
     oct_files = oct_parser.get_slo_list()
 
@@ -27,6 +26,9 @@ def main(test_grid_centres_flag=False):
     for match in matched_mp_oct:
         print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->',
               os.path.basename(match['slo_file']))
+
+    registrator = FundusRegistrator.mp_oct_registration(matched_mp_oct)
+
 
     # Need to transform the stimulation sites based on the registration -- so the method in the call below needs changing
     overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
