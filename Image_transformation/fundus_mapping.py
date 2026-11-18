@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from mp_oct_enums_helpers import AAVB_FONT, _to_uint8
 
-class CreateMPDataDicts:
+class CreateMicroperimetryDataDicts:
     def __init__(self, mp_dir, metadata_keys):
         self.mp_dir = mp_dir
         self.metadata_keys = metadata_keys
@@ -91,7 +91,7 @@ class CreateMPDataDicts:
 
         return all_xml_data
 
-class CalculateStimCoordinates:
+class CalculateMicroperimetryCoordinates:
     def __init__(self, patient_data):
         self.patient_data = patient_data
 
@@ -217,16 +217,16 @@ class FundusOverlays:
 
         return output_dir
 
-    def overlay_thickness_maps_to_oc(self):
+    # def overlay_thickness_maps_to_oct(self):
 
 
-    def overlay_stim_ellipses_to_oct(self, registered_pairs):
-        # timestamp the output folder, use the timestamp from class object
-        output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
-        os.makedirs(output_dir, exist_ok=True)
-
-        for pair in registered_pairs:
-          transform = pair['transform']
-          slo_img = pair['slo_img']
+    # def overlay_stim_ellipses_to_oct(self, registered_pairs):
+    #     # timestamp the output folder, use the timestamp from initial entry point
+    #     output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
+    #     os.makedirs(output_dir, exist_ok=True)
+    #
+    #     for pair in registered_pairs:
+    #       transform = pair['transform']
+    #       slo_img = pair['slo_img']
 
 

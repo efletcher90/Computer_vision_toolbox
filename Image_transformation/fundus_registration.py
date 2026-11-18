@@ -131,18 +131,18 @@ class FundusRegistrator:
 #
             # Keep the transform data and the prepared images (i.e. transformed 8-bit MP scan and single channel SLO) for the final overlay
             if n_matches:
-                registered_pairs.append({**pair,'transform': transform,'mp_img': mp_img,'slo_img': _to_gray(slo_img),'transform_summary': transform_summary})
+                registered_pairs.append({**pair,'transform_data': transform,'mp_img': mp_img,'slo_img': _to_gray(slo_img),'transform_summary': transform_summary})
 
-            fields = ['patient_id', 'exam_id', 'eye', 'timepoint', 'transform_info', 'transform']
+        # Create a transform data dump csv file, save in output folder
+        fields = ['patient_id', 'exam_id', 'eye', 'timepoint', 'transform_summary', 'transform_data']
+        csv_path =  os.path.join(self.output_dir, f"transformation_dump_{self.timestamp}.csv")
 
-            # Create a transform data dump csv file, save in output folder
-            csv_path =  os.path.join(self.output_dir, f"transforms_{self.timestamp}.csv")
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=['patient_id', 'exam_id', 'eye', 'timepoint', 'transform_info', 'transform'])
-                writer.writeheader()
-                for pairs in registered_pairs:
-                    row = {k: pairs[k] for k in fields[:-1]}
-                    row['transform'] = json.dumps(pair['transform'].to_dict())
-                    writer.writerow(row)
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            for row_pair in registered_pairs:
+                row = {k: row_pair[k] for k in fields[:-1]}
+                row['transform_data'] = json.dumps(row_pair['transform_data'].to_dict())
+                writer.writerow(row)
 
         return registered_pairs

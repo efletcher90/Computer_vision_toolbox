@@ -1,18 +1,18 @@
-from microperimetry_mapping import CreateMPDataDicts, CalculateStimCoordinates, FundusOverlays
+from fundus_mapping import CreateMicroperimetryDataDicts, CalculateMicroperimetryCoordinates, FundusOverlays
 from fundus_registration import FundusRegistrator
 from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS, \
     _test_grid_centres, _number_multiple_recordings_in_visit, AAVB_FONT
 import os
 import time
 
-def main(test_grid_centres_flag=False):
-    xml_parser = CreateMPDataDicts(MP_DIR, METADATA_KEYS)
+def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M")):
+    xml_parser = CreateMicroperimetryDataDicts(MP_DIR, METADATA_KEYS)
 
     mp_files, patient_id = xml_parser.get_mp_list()
     patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
     patient_data_dicts = _number_multiple_recordings_in_visit(patient_data_dicts)
 
-    calculator = CalculateStimCoordinates(patient_data_dicts)
+    calculator = CalculateMicroperimetryCoordinates(patient_data_dicts)
     data_with_coords = calculator.calculate_pixel_coordinates()
 
     # This call is used to check for the centre grid points on
@@ -33,7 +33,7 @@ def main(test_grid_centres_flag=False):
     overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp)
 
     registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
-    oct_saved_folder = overlay.overlay_stim_ellipses_to_oct(registration_data)
+    # oct_saved_folder = overlay.overlay_stim_ellipses_to_oct(registration_data)
 
 
     # print(f"MP overlays saved to: {mp_saved_folder}")
@@ -41,4 +41,4 @@ def main(test_grid_centres_flag=False):
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
+
