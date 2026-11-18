@@ -88,9 +88,9 @@ def _normalise_eye(eye):
     # Standardises either OS/OD or left/right across the datasets/images
     e = str(eye).strip().lower()
     if e in ('left', 'l', 'os'):
-        return 'L'
+        return 'OS'
     if e in ('right', 'r', 'od'):
-        return 'R'
+        return 'OD'
     return e
 
 def _number_multiple_recordings_in_visit(p_data):

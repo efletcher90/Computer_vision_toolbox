@@ -17,11 +17,10 @@ class CreateMicroperimetryDataDicts:
         mp_list = []
         seen_exams = set()
 
-        # find all the scan folders within the root directory, sorted by visit number (e.g. V1 - V5).
+        # find all the scan folders within the root directory, sorted by visit number (e.g. V1 to V5).
         # each export holds all exams up to that visit, so an exam's own visit is the first folder it appears in
-
         folders = sorted([os.path.join(self.mp_dir, name) for name in os.listdir(self.mp_dir) if
-                          os.path.isdir(os.path.join(self.mp_dir, name)) and not name.startswith("overlays_")],
+                          os.path.isdir(os.path.join(self.mp_dir, name))],
                          key=lambda f: int(re.search(r'_V(\d+)', os.path.basename(f)).group(1)))
 
         # get the patient id from the file basename, just split at the first underscore. This is then assigned to the final dict
@@ -154,18 +153,18 @@ class CalculateMicroperimetryCoordinates:
         return self.patient_data
 
 class FundusOverlays:
-    def __init__(self, patient_data, colour_map, mp_dir, output_dir, folder_timestamp):
+    def __init__(self, patient_data, colour_map, mp_dir, output_dir, folder_timestamp, aavb_font):
         self.patient_data = patient_data
         self.colour_map = colour_map
         self.mp_dir = mp_dir
         self.output_dir = output_dir
         self.timestamp = folder_timestamp
-        self.font = ImageFont.truetype(AAVB_FONT, 36)
+        self.font = ImageFont.truetype(aavb_font, 36)
 
     def draw_mp_scan_ellipses(self):
         # timestamp the output folder for reconstruction
-        output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
-        os.makedirs(output_dir, exist_ok=True)
+        save_dir = os.path.join(self.output_dir, f"MP_array_projections{self.timestamp}")
+        os.makedirs(save_dir, exist_ok=True)
 
         for patient in self.patient_data:
             # open the scan image in RGB, assign H and W (these should be 1536x1536 pixels - i.e. typical b-scan dims)
@@ -193,11 +192,10 @@ class FundusOverlays:
                 # find the matching hex values to the intensity, as written in the enum
                 # '<0' is a given value, so need to account for that wiht black
                 colour_key = "<0" if intensity < 0 else str(intensity)
-                fill_colour_hex = self.colour_map.get(colour_key)
 
                 # draw the circles for the intesnity values, adding the corresponding colour map
                 draw.ellipse([px_x - radius, px_y - radius, px_x + radius, px_y + radius],
-                             fill=fill_colour_hex,
+                             fill=self.colour_map.get(colour_key),
                              outline="#FFFFFF",
                              width=1,
                              )
@@ -210,23 +208,40 @@ class FundusOverlays:
             # add image identifier and save in output directory
             image_name = f"{p_id}_{exam_id}_{eye}"
             draw.text((1004, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
-            save_path = os.path.join(output_dir, f"{image_name}Eye_overlay.png")
+            save_path = os.path.join(save_dir, f"{image_name}_MP_overlay.png")
 
             print(f"Saved: {save_path}")
             img.save(save_path)
 
-        return output_dir
-
     # def overlay_thickness_maps_to_oct(self):
 
 
-    # def overlay_stim_ellipses_to_oct(self, registered_pairs):
-    #     # timestamp the output folder, use the timestamp from initial entry point
-    #     output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
-    #     os.makedirs(output_dir, exist_ok=True)
-    #
-    #     for pair in registered_pairs:
-    #       transform = pair['transform']
-    #       slo_img = pair['slo_img']
+    def overlay_stim_ellipses_to_oct(self, registered_pairs):
+        save_dir = os.path.join(self.output_dir, f"Registered_MP_OCT_overlays_{self.timestamp}")
+        os.makedirs(save_dir, exist_ok=True)
 
+        for pair in registered_pairs:
+            transform = pair['transform_data']
 
+            # transform the stim coordinates from the MP still into the SLO pixel frame
+            stims = pair['stimuli']
+
+            points_slo = transform.apply(np.array([[s['px_x'], s['px_y']] for s in stims]))
+
+            # raw SLO image as the canvas (RGB so the stimuli are colour coded)
+            img = Image.fromarray(pair['slo_img']).convert("RGB")
+            draw = ImageDraw.Draw(img)
+
+            # draw the transformed stimuli, colour coded by intensity
+            for stim, (px_x, px_y) in zip(stims, points_slo):
+                intensity = stim['intensity']
+                colour_key = "<0" if intensity < 0 else str(intensity)
+                draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
+
+            # image identifier and save
+            image_name = f"{pair['patient_id']}_{pair['exam_id']}_{pair['eye']}_{pair['timepoint']}"
+            draw.text((img.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
+            save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
+            img.save(save_path)
+
+            print(f"Saved: {save_path}")

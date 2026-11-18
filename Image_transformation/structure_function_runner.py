@@ -29,15 +29,11 @@ def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M"))
     for match in matched_mp_oct:
         print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->', os.path.basename(match['slo_file']))
 
-    # Need to transform the stimulation sites based on the registration -- so the method in the call below needs changing
-    overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp)
+    overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp, AAVB_FONT)
 
+    overlay.draw_mp_scan_ellipses()
     registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
-    # oct_saved_folder = overlay.overlay_stim_ellipses_to_oct(registration_data)
-
-
-    # print(f"MP overlays saved to: {mp_saved_folder}")
-    # print(f"OCT overlays saved to: {oct_saved_folder}")
+    overlay.overlay_stim_ellipses_to_oct(registration_data)
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
