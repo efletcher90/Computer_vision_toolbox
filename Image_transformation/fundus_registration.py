@@ -1,16 +1,21 @@
 import os
 from PIL import Image
-from mp_oct_enums_helpers import _normalise_eye, _to_gray, _red_cyan, _to_uint8, AAVB_FONT, _transform_scale_rotation
+import csv
+import json
+from mp_oct_enums_helpers import _normalise_eye, _to_gray, _red_cyan, _to_uint8
 from matplotlib import pyplot as plt
 from matplotlib.font_manager import FontProperties
 import matplotlib.patheffects as pe
 import numpy as np
-from rtnls_registration import Registration, open_image
+from rtnls_registration import Registration
 
 class FundusRegistrator:
-    def __init__(self, p_data_coords_dicts, oct_dir):
+    def __init__(self, p_data_coords_dicts, oct_dir, output_dir, aavb_font, folder_timestamp):
         self.oct_dir = oct_dir
+        self.output_dir = output_dir
+        self.aavb_font = aavb_font
         self.p_data_coords_dicts = p_data_coords_dicts
+        self.timestamp = folder_timestamp
 
     # Create list of the SLO tifs during OCT imaging
     def get_slo_list(self):
@@ -81,7 +86,7 @@ class FundusRegistrator:
         return oct_mp_pairs
 
     def mp_oct_fundus_registration(self, mp_oct_pairs):
-        font = FontProperties(fname=AAVB_FONT, size=14)
+        font = FontProperties(fname=self.aavb_font, size=14)
         font_stroke = [pe.withStroke(linewidth=1, foreground='black')]
         registered_pairs = []
 
@@ -97,8 +102,8 @@ class FundusRegistrator:
 
             # number of matched points the registration was based on (0 means it failed)
             n_matches = len(getattr(registrator, 'final_matches', []))
-            transform_info = f'Registration based on {n_matches} matched points' if n_matches else 'Registration FAILED'
-            print(f"{pair['exam_id']} {pair['timepoint']}: {transform_info}")
+            transform_summary = f'Registration based on {n_matches} matched points' if n_matches else 'Registration FAILED'
+            print(f"{pair['exam_id']} {pair['timepoint']}: {transform_summary}")
 
             # warp the MP image into the SLO's pixel frame (same size as the SLO)
             mp_warped = transform.warp(mp_img, slo_img.shape[:2])
@@ -120,12 +125,24 @@ class FundusRegistrator:
 
             # print the figure title as well as the scale and rotation values of the mp scan about the centre point of the image
             fig.suptitle(f"Patient: {pair['patient_id']} - MP_Exam_ID: {pair['exam_id']} - {pair['eye']} Eye - {pair['timepoint']}", font=font, fontsize=14)
-            fig.text(0.5, 0.02, transform_info, ha='center', va='bottom', font=font, fontsize=14)
+            fig.text(0.5, 0.02, transform_summary, ha='center', va='bottom', font=font, fontsize=14)
             fig.subplots_adjust(left=0.01, right=0.99, top=0.90, bottom=0.07, wspace=0.02)
             plt.show()
 #
             # Keep the transform data and the prepared images (i.e. transformed 8-bit MP scan and single channel SLO) for the final overlay
             if n_matches:
-                registered_pairs.append({**pair,'transform': transform,'mp_img': mp_img,'slo_img': _to_gray(slo_img),'transform_info': transform_info})
+                registered_pairs.append({**pair,'transform': transform,'mp_img': mp_img,'slo_img': _to_gray(slo_img),'transform_summary': transform_summary})
+
+            fields = ['patient_id', 'exam_id', 'eye', 'timepoint', 'transform_info', 'transform']
+
+            # Create a transform data dump csv file, save in output folder
+            csv_path =  os.path.join(self.output_dir, f"transforms_{self.timestamp}.csv")
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=['patient_id', 'exam_id', 'eye', 'timepoint', 'transform_info', 'transform'])
+                writer.writeheader()
+                for pairs in registered_pairs:
+                    row = {k: pairs[k] for k in fields[:-1]}
+                    row['transform'] = json.dumps(pair['transform'].to_dict())
+                    writer.writerow(row)
 
         return registered_pairs

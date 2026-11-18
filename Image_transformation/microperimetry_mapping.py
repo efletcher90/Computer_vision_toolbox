@@ -5,7 +5,7 @@ import time
 import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from mp_oct_enums_helpers import (MP_DIR, AAVB_FONT, _to_uint8)
+from mp_oct_enums_helpers import AAVB_FONT, _to_uint8
 
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -154,15 +154,17 @@ class CalculateStimCoordinates:
         return self.patient_data
 
 class FundusOverlays:
-    def __init__(self, patient_data, colour_map, mp_dir):
+    def __init__(self, patient_data, colour_map, mp_dir, output_dir, folder_timestamp):
         self.patient_data = patient_data
         self.colour_map = colour_map
         self.mp_dir = mp_dir
-        self.timestamp = time.strftime("%Y%m%d_%H%M%S")
+        self.output_dir = output_dir
+        self.timestamp = folder_timestamp
+        self.font = ImageFont.truetype(AAVB_FONT, 36)
 
     def draw_mp_scan_ellipses(self):
         # timestamp the output folder for reconstruction
-        output_dir = os.path.join(MP_DIR, f"overlays_mp_{self.timestamp}")
+        output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
         os.makedirs(output_dir, exist_ok=True)
 
         for patient in self.patient_data:
@@ -207,8 +209,7 @@ class FundusOverlays:
 
             # add image identifier and save in output directory
             image_name = f"{p_id}_{exam_id}_{eye}"
-            font = ImageFont.truetype(AAVB_FONT, 36)
-            draw.text((1004, 20), image_name, fill="#FFFFFF", anchor="ra", font=font)
+            draw.text((1004, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
             save_path = os.path.join(output_dir, f"{image_name}Eye_overlay.png")
 
             print(f"Saved: {save_path}")
@@ -216,9 +217,16 @@ class FundusOverlays:
 
         return output_dir
 
-    def transform_overlay_mp_to_oct(self, registered_pairs):
+    def overlay_thickness_maps_to_oc(self):
+
+
+    def overlay_stim_ellipses_to_oct(self, registered_pairs):
         # timestamp the output folder, use the timestamp from class object
-        output_dir = os.path.join(self.mp_dir, f"overlays_mp_{self.timestamp}")
+        output_dir = os.path.join(self.output_dir, f"overlays_mp_{self.timestamp}")
         os.makedirs(output_dir, exist_ok=True)
+
+        for pair in registered_pairs:
+          transform = pair['transform']
+          slo_img = pair['slo_img']
 
 

@@ -7,6 +7,7 @@ import cv2
 
 # --- Enums -------- #
 # dir for mp and oct data
+OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\Outputs'
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
@@ -103,9 +104,9 @@ def _number_multiple_recordings_in_visit(p_data):
 
     return p_data
 
-def _transform_scale_rotation(transform, centre_point):
-    # measure the transform's scale and rotation around a point by mapping a short line through it
-    p0, p1 = transform.apply(np.array([centre_point, centre_point + [100, 0]]))
-    d = p1 - p0
-
-    return np.linalg.norm(d) / 100, np.degrees(np.arctan2(d[1], d[0]))
+# def _transform_scale_rotation(transform, centre_point):
+#     # measure the transform's scale and rotation around a point by mapping a short line through it
+#     p0, p1 = transform.apply(np.array([centre_point, centre_point + [100, 0]]))
+#     d = p1 - p0
+#
+#     return np.linalg.norm(d) / 100, np.degrees(np.arctan2(d[1], d[0]))
