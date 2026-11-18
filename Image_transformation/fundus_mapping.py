@@ -1,11 +1,10 @@
 import xmltodict
 import os
 import re
-import time
 import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from mp_oct_enums_helpers import AAVB_FONT, _to_uint8
+from mp_oct_enums_helpers import _to_uint8
 
 class CreateMicroperimetryDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -222,10 +221,9 @@ class FundusOverlays:
     #         rpe_map = pair['rpe_map']
     #         slo_img = pair['slo_img']
     #
-    #         img = Image.fromarray(pair['slo_img']).convert("RGB")
-    #         draw = ImageDraw.Draw(img)
-
-
+    #         slo = Image.fromarray(pair['slo_img']).convert("RGB")
+    #
+    #         draw = ImageDraw.Draw(slo)
 
     def overlay_stim_ellipses_to_oct(self, registered_pairs):
         save_dir = os.path.join(self.output_dir, f"Registered_MP_OCT_overlays_{self.timestamp}")
@@ -242,9 +240,6 @@ class FundusOverlays:
             # raw SLO image as the canvas (RGB so the stimuli are colour coded)
             img = Image.fromarray(pair['slo_img']).convert("RGB")
             draw = ImageDraw.Draw(img)
-
-
-
 
             # draw the transformed stimuli, colour coded by intensity
             for stim, (px_x, px_y) in zip(stims, points_slo):

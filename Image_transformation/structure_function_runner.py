@@ -1,11 +1,14 @@
-from fundus_mapping import CreateMicroperimetryDataDicts, CalculateMicroperimetryCoordinates, FundusOverlays
-from fundus_registration import FundusRegistrator
-from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS, \
-    _test_grid_centres, _number_multiple_recordings_in_visit, AAVB_FONT
+from Image_transformation.fundus_mapping import CreateMicroperimetryDataDicts, CalculateMicroperimetryCoordinates, FundusOverlays
+from Image_transformation.oct_thickness_mapping import OctThicknessMapping
+from Image_transformation.fundus_registration import FundusRegistrator
+from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
+                                                       _test_grid_centres, _number_multiple_recordings_in_visit,
+                                                       AAVB_FONT, EZ_LUT, RPE_LUT)
 import os
 import time
 
 def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M")):
+    timestamp=time.strftime("%Y-%m-%d_%H%M")
     xml_parser = CreateMicroperimetryDataDicts(MP_DIR, METADATA_KEYS)
 
     mp_files, patient_id = xml_parser.get_mp_list()
@@ -34,7 +37,11 @@ def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M"))
     overlay.draw_mp_scan_ellipses()
     registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
 
-    # overlay.overlay_thickness_maps_to_oct(registration_data)
+    mapping = OctThicknessMapping(registration_data, EZ_LUT, RPE_LUT)
+    rgb_values_ez, rgb_values_rpe = mapping.get_pixel_thickness_values()
+    mapping.overlay_rgb_maps(rgb_values_ez, rgb_values_rpe)
+
+    overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_stim_ellipses_to_oct(registration_data)
 
 if __name__ == "__main__":

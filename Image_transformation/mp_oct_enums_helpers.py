@@ -11,6 +11,8 @@ OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Clevela
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
+EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_lookup_unique.csv'
+RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_lookup_unique.csv'
 
 # wanted keys to patient metadata stored in 'projection.xml' dict
 METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
@@ -104,9 +106,16 @@ def _number_multiple_recordings_in_visit(p_data):
 
     return p_data
 
-# def _transform_scale_rotation(transform, centre_point):
-#     # measure the transform's scale and rotation around a point by mapping a short line through it
-#     p0, p1 = transform.apply(np.array([centre_point, centre_point + [100, 0]]))
-#     d = p1 - p0
-#
-#     return np.linalg.norm(d) / 100, np.degrees(np.arctan2(d[1], d[0]))
+def _rgb_to_thickness(map_path, lut_csv, max_colour_distance=15):
+    # nearest colour in the lookup table (csv columns: R, G, B, mean_um) for every pixel
+    lut = np.genfromtxt(lut_csv, delimiter=',', names=True, usecols=('R', 'G', 'B', 'mean_um'))
+    lut_rgb = np.column_stack([lut['R'], lut['G'], lut['B']]).astype(float)
+
+    rgb = np.array(Image.open(map_path).convert("RGB"))
+    colours, inverse = np.unique(rgb.reshape(-1, 3), axis=0, return_inverse=True)
+    distances = np.linalg.norm(colours[:, None, :].astype(float) - lut_rgb[None, :, :], axis=2)
+
+    values = lut['mean_um'][distances.argmin(axis=1)].astype(float)
+    values[distances.min(axis=1) > max_colour_distance] = np.nan
+
+    return values[inverse.ravel()].reshape(rgb.shape[:2])
