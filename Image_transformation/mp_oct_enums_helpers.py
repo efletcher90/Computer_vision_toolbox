@@ -102,3 +102,10 @@ def _number_multiple_recordings_in_visit(p_data):
         patient['repeat'] = counts[key]
 
     return p_data
+
+def _transform_scale_rotation(transform, centre_point):
+    # measure the transform's scale and rotation around a point by mapping a short line through it
+    p0, p1 = transform.apply(np.array([centre_point, centre_point + [100, 0]]))
+    d = p1 - p0
+
+    return np.linalg.norm(d) / 100, np.degrees(np.arctan2(d[1], d[0]))

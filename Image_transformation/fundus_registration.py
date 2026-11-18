@@ -1,12 +1,16 @@
 import os
 from PIL import Image
-import matplotlib as plt
-from mp_oct_enums_helpers import _normalise_eye, _to_gray, _red_cyan, _to_uint8
+from mp_oct_enums_helpers import _normalise_eye, _to_gray, _red_cyan, _to_uint8, AAVB_FONT, _transform_scale_rotation
+from matplotlib import pyplot as plt
+from matplotlib.font_manager import FontProperties
+import matplotlib.patheffects as pe
+import numpy as np
+from rtnls_registration import Registration, open_image
 
 class FundusRegistrator:
-    def __init__(self, patient_data_dicts, oct_dir):
+    def __init__(self, p_data_coords_dicts, oct_dir):
         self.oct_dir = oct_dir
-        self.patient_data = patient_data_dicts
+        self.p_data_coords_dicts = p_data_coords_dicts
 
     # Create list of the SLO tifs during OCT imaging
     def get_slo_list(self):
@@ -44,10 +48,10 @@ class FundusRegistrator:
                                     )
         return oct_list
 
-    def match_oct_with_mp(self, patient_data, scan_imgs):
+    def match_oct_with_mp(self, oct_scan_imgs):
         oct_mp_pairs = []
 
-        for patient in patient_data:
+        for patient in self.p_data_coords_dicts:
             # only use the second baseline recording for each eye in the folder--- will need to confirm that this is fine later
             if patient['timepoint'].lower() == 'baseline' and patient['repeat'] == 1:
                 continue
@@ -55,7 +59,7 @@ class FundusRegistrator:
             eye = _normalise_eye(patient['Eye'])
             timepoint = patient['timepoint'].lower()
 
-            matches = [img for img in scan_imgs if img['patient_id'] == patient['patient_id']
+            matches = [img for img in oct_scan_imgs if img['patient_id'] == patient['patient_id']
                        and img['exam_time'].lower() == timepoint and _normalise_eye(img['eye']) == eye]
 
             if not matches:
@@ -76,46 +80,52 @@ class FundusRegistrator:
 
         return oct_mp_pairs
 
-    def mp_oct_registration(self, img_pairs):
-        for img in img_pairs:
-            # all images from MP need rotating 90 CCW
-            mp_img = img['mp_still'].transpose(Image.Transpose.ROTATE_90)
-            slo_img = img['slo_file']
+    def mp_oct_fundus_registration(self, mp_oct_pairs):
+        font = FontProperties(fname=AAVB_FONT, size=14)
+        font_stroke = [pe.withStroke(linewidth=1, foreground='black')]
+        registered_pairs = []
 
-            plt.imshow(_red_cyan(_to_gray(slo_img), _to_gray(mp_img)))
-            plt.title('Before registration')
-            plt.axis('off')
+        for pair in mp_oct_pairs:
+
+            mp_img = Image.open(pair['mp_still']).transpose(Image.Transpose.ROTATE_90)
+            mp_img = _to_uint8(np.array(mp_img))
+            slo_img = _to_uint8(np.array(Image.open(pair['slo_file'])))
+
+            # register MP to OCT SLO
+            registrator = Registration(max_rotation_deg=10)
+            transform = registrator(mp_img, slo_img)
+
+            # number of matched points the registration was based on (0 means it failed)
+            n_matches = len(getattr(registrator, 'final_matches', []))
+            transform_info = f'Registration based on {n_matches} matched points' if n_matches else 'Registration FAILED'
+            print(f"{pair['exam_id']} {pair['timepoint']}: {transform_info}")
+
+            # warp the MP image into the SLO's pixel frame (same size as the SLO)
+            mp_warped = transform.warp(mp_img, slo_img.shape[:2])
+
+            # create a 2 plot figure, showing the before and after registration
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6.4))
+
+            ax1.imshow(_red_cyan(_to_gray(slo_img), _to_gray(mp_img)))
+            ax1.set_title(f'Before registration', fontproperties=font)
+            ax1.axis('off')
+
+            ax2.imshow(_red_cyan(_to_gray(slo_img), _to_gray(mp_warped)))
+            ax2.set_title(f'After registration', fontproperties=font)
+            ax2.axis('off')
+
+            # add AAVBio font and add a stroke to the cyan and red label text
+            fig.text(0.99, 0.94, 'MP scan (transformed)', color='#00FFFF', fontproperties=font, ha='right', va='bottom', path_effects=font_stroke)
+            fig.text(0.99, 0.91, 'OCT scan (fixed)', color='#FF0000', fontproperties=font, ha='right', va='bottom', path_effects=font_stroke)
+
+            # print the figure title as well as the scale and rotation values of the mp scan about the centre point of the image
+            fig.suptitle(f"Patient: {pair['patient_id']} - MP_Exam_ID: {pair['exam_id']} - {pair['eye']} Eye - {pair['timepoint']}", font=font, fontsize=14)
+            fig.text(0.5, 0.02, transform_info, ha='center', va='bottom', font=font, fontsize=14)
+            fig.subplots_adjust(left=0.01, right=0.99, top=0.90, bottom=0.07, wspace=0.02)
             plt.show()
+#
+            # Keep the transform data and the prepared images (i.e. transformed 8-bit MP scan and single channel SLO) for the final overlay
+            if n_matches:
+                registered_pairs.append({**pair,'transform': transform,'mp_img': mp_img,'slo_img': _to_gray(slo_img),'transform_info': transform_info})
 
-# # MAIA stills are stored rotated 90° from the report view. np.rot90(k=1) = PIL ROTATE_90 (anticlockwise).
-# # Remove this line if 3678_MP.png has already been rotated.
-# # mp_img = np.ascontiguousarray(np.rot90(mp_img, k=1))
-#
-# # --- before registration ---
-# plt.imshow(red_cyan(to_gray(slo_img), to_gray(mp_img)))
-# plt.title('Before registration')
-# plt.axis('off')
-# plt.show()
-#
-# # --- register MP -> SLO ---
-# registrator = Registration()
-# transform = registrator(mp_img, slo_img)
-#
-# # warp the MP image into the SLO's pixel frame (same size as the SLO)
-# mp_warped = transform.warp(mp_img, slo_img.shape[:2])
-#
-# # --- after registration ---
-# plt.imshow(red_cyan(to_gray(slo_img), to_gray(mp_warped)))
-# plt.title('After registration')
-# plt.axis('off')
-# plt.show()
-#
-# # --- map MP stimulus coordinates onto the SLO ([[x0, y0], [x1, y1], ...] in MP image pixels) ---
-# coords_mp = np.array([[500, 500], [900, 500]])
-# coords_slo = transform.apply(coords_mp)
-#
-# plt.imshow(to_gray(slo_img), cmap='gray')
-# plt.scatter(coords_slo[:, 0], coords_slo[:, 1], c='c', s=20)
-# plt.title('MP points on SLO')
-# plt.axis('off')
-# plt.show()
+        return registered_pairs

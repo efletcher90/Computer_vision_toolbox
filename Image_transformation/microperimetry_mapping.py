@@ -5,8 +5,7 @@ import time
 import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, METADATA_KEYS, AAVB_FONT,
-                                                       _to_uint8)
+from mp_oct_enums_helpers import (MP_DIR, AAVB_FONT, _to_uint8)
 
 class CreateMPDataDicts:
     def __init__(self, mp_dir, metadata_keys):
@@ -154,16 +153,16 @@ class CalculateStimCoordinates:
 
         return self.patient_data
 
-class OverlayEllipsesToFundus:
+class FundusOverlays:
     def __init__(self, patient_data, colour_map, mp_dir):
         self.patient_data = patient_data
         self.colour_map = colour_map
         self.mp_dir = mp_dir
+        self.timestamp = time.strftime("%Y%m%d_%H%M%S")
 
-    def draw_overlays(self):
+    def draw_mp_scan_ellipses(self):
         # timestamp the output folder for reconstruction
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        output_dir = os.path.join(MP_DIR, f"overlays_{timestamp}")
+        output_dir = os.path.join(MP_DIR, f"overlays_mp_{self.timestamp}")
         os.makedirs(output_dir, exist_ok=True)
 
         for patient in self.patient_data:
@@ -189,8 +188,8 @@ class OverlayEllipsesToFundus:
                 px_y = stim["px_y"]
                 intensity = stim["intensity"]
 
-                # find the matching hex values to the intensity, as written in the enum. '<0' is a given value, so need to
-                # account for that
+                # find the matching hex values to the intensity, as written in the enum
+                # '<0' is a given value, so need to account for that wiht black
                 colour_key = "<0" if intensity < 0 else str(intensity)
                 fill_colour_hex = self.colour_map.get(colour_key)
 
@@ -216,3 +215,10 @@ class OverlayEllipsesToFundus:
             img.save(save_path)
 
         return output_dir
+
+    def transform_overlay_mp_to_oct(self, registered_pairs):
+        # timestamp the output folder, use the timestamp from class object
+        output_dir = os.path.join(self.mp_dir, f"overlays_mp_{self.timestamp}")
+        os.makedirs(output_dir, exist_ok=True)
+
+

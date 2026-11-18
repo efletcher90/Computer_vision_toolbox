@@ -1,4 +1,4 @@
-from microperimetry_mapping import CreateMPDataDicts, CalculateStimCoordinates, OverlayEllipsesToFundus
+from microperimetry_mapping import CreateMPDataDicts, CalculateStimCoordinates, FundusOverlays
 from fundus_registration import FundusRegistrator
 from Image_transformation.mp_oct_enums_helpers import DB_COLOUR_VALUES, MP_DIR, OCT_DIR, METADATA_KEYS, _test_grid_centres, _number_multiple_recordings_in_visit
 import os
@@ -19,26 +19,24 @@ def main(test_grid_centres_flag=False):
             _test_grid_centres(patient)
 
     oct_parser = FundusRegistrator(data_with_coords, OCT_DIR)
-    oct_files = oct_parser.get_slo_list()
+    oct_file_list = oct_parser.get_slo_list()
 
-    matched_mp_oct = oct_parser.match_oct_with_mp(data_with_coords, oct_files)
+    matched_mp_oct = oct_parser.match_oct_with_mp(oct_file_list)
 
+    # identify matches for debugging
     for match in matched_mp_oct:
-        print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->',
-              os.path.basename(match['slo_file']))
-
-    registrator = FundusRegistrator.mp_oct_registration(matched_mp_oct)
-
+        print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->', os.path.basename(match['slo_file']))
 
     # Need to transform the stimulation sites based on the registration -- so the method in the call below needs changing
-    overlay = OverlayEllipsesToFundus(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
-    mp_saved_folder = overlay.draw_overlays()
+    overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR)
+    registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
+    oct_saved_folder = overlay.transform_overlay_mp_to_oct(registration_data)
 
 
 
 
 
-    print(f"MP overlays saved to: {mp_saved_folder}")
+    # print(f"MP overlays saved to: {mp_saved_folder}")
     # print(f"OCT overlays saved to: {oct_saved_folder}")
 
 if __name__ == "__main__":
