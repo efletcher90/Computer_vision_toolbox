@@ -33,6 +33,8 @@ def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M"))
 
     overlay.draw_mp_scan_ellipses()
     registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
+
+    # overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_stim_ellipses_to_oct(registration_data)
 
 if __name__ == "__main__":

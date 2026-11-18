@@ -213,7 +213,18 @@ class FundusOverlays:
             print(f"Saved: {save_path}")
             img.save(save_path)
 
-    # def overlay_thickness_maps_to_oct(self):
+    # def overlay_thickness_maps_to_oct(self, registered_pairs):
+    #     save_dir = os.path.join(self.output_dir, f"Thickness_map_overlays_{self.timestamp}")
+    #     os.makedirs(save_dir, exist_ok=True)
+    #
+    #     for pair in registered_pairs:
+    #         ez_map = pair['ez_map']
+    #         rpe_map = pair['rpe_map']
+    #         slo_img = pair['slo_img']
+    #
+    #         img = Image.fromarray(pair['slo_img']).convert("RGB")
+    #         draw = ImageDraw.Draw(img)
+
 
 
     def overlay_stim_ellipses_to_oct(self, registered_pairs):
@@ -232,14 +243,20 @@ class FundusOverlays:
             img = Image.fromarray(pair['slo_img']).convert("RGB")
             draw = ImageDraw.Draw(img)
 
+
+
+
             # draw the transformed stimuli, colour coded by intensity
             for stim, (px_x, px_y) in zip(stims, points_slo):
                 intensity = stim['intensity']
                 colour_key = "<0" if intensity < 0 else str(intensity)
+                # make the intnesity annotations white if the ellipsis is black or dark, otherwise make black
+                fill = "#000000" if intensity > 1 else "#FFFFFF"
                 draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
+                draw.text((px_x, px_y), str(intensity), fill=fill, anchor="mm", font_size=22)
 
             # image identifier and save
-            image_name = f"{pair['patient_id']}_{pair['exam_id']}_{pair['eye']}_{pair['timepoint']}"
+            image_name = f"{pair['patient_id']}_{pair['eye']}Eye_{pair['timepoint']}"
             draw.text((img.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
             save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
             img.save(save_path)
