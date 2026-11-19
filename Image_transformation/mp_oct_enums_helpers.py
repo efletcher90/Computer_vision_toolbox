@@ -108,6 +108,11 @@ def _number_multiple_recordings_in_visit(p_data):
 
     return p_data
 
+def _stim_text_hex(d):
+    # white text on the dark ellipses is fine, but not so good on the light ones -- this switches the number colour
+    stim_hex_value = "#000000" if d > 2 else "#FFFFFF"
+    return stim_hex_value
+
 def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
    # use csv to open the lut_csv corresponding to the thickness:colour mapping from Cleveland
     with open(lut_csv, newline='', encoding='utf-8') as lut_csv:

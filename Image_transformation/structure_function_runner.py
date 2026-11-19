@@ -34,7 +34,7 @@ def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M"))
 
     overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp, AAVB_FONT)
 
-    overlay.draw_mp_scan_ellipses()
+    overlay.draw_mp_data_to_maia_scan()
     registration_data = oct_parser.mp_oct_fundus_registration(matched_mp_oct)
 
     mapping = OctThicknessMapping(registration_data, EZ_LUT, RPE_LUT)
@@ -42,7 +42,7 @@ def main(test_grid_centres_flag=False, timestamp=time.strftime("%Y-%m-%d_%H%M"))
     mapping.overlay_rgb_maps(rgb_values_ez, rgb_values_rpe)
 
     overlay.overlay_thickness_maps_to_oct(registration_data)
-    overlay.overlay_stim_ellipses_to_oct(registration_data)
+    overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
