@@ -123,9 +123,9 @@ def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
         rgb_img = np.array(Image.open(map_img).convert('RGB'))
 
         # reshape image as a series of 1D pixels. Then align to the closest RGB value in the LUT for that pixel
+        # then get the thickness for that pixel
         colours, inverse = np.unique(rgb_img.reshape(-1, 3), axis=0, return_inverse=True)
         distances = np.linalg.norm(colours[:, None, :].astype(float) - lut_rgb[None, :, :], axis=2)
-
         values = lut_um[distances.argmin(axis=1)]
 
         # Register any pixel that has a corresponding thickness greater than the max_rgb_thickness variable to NaN
@@ -133,7 +133,7 @@ def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
         # greater than ~30um... this is the current parameter for the helper fn
         values[distances.min(axis=1) > max_rgb_thickness] = np.nan
 
-        # return the map png as an array as well as the pixel rgb/thickness values
+        # return the map png as well as the thickness map, both as ndarrays --- stored together as a tuple
         return rgb_img, values[inverse.ravel()].reshape(rgb_img.shape[:2])
 
 

@@ -16,7 +16,7 @@ class OctThicknessMapping:
             ez_img = t_map['ez_rpe_map']
             rpe_img = t_map['rpe_bm_map']
 
-            # each entry is (rgb, thickness), or None if the map is missing
+            # each entry is a tuple of the map and thickness data (ndarrays; or None if the map is missing)
             rgb_values_ez.append(_rgb_to_thickness(ez_img, self.ez_lut_csv) if ez_img else None)
             rgb_values_rpe.append(_rgb_to_thickness(rpe_img, self.rpe_lut_csv) if rpe_img else None)
 
@@ -30,11 +30,12 @@ class OctThicknessMapping:
                 rgb, thickness = values
                 map_img = Image.fromarray(rgb)
 
-                # mask of pixels within the thickness range. NaN (outside scan) compares as False, so it's excluded
+                # Keeps mask of pixels within the thickness range, any others == False and therefore is excluded
+                # from the overlay. We're only interested in thicknesses of these tissues at lesion or perilesion
                 in_range = (thickness >= min_um) & (thickness <= max_um)
                 mask = Image.fromarray(in_range.astype(np.uint8) * 255)
 
-                # maps and SLO are expected to be the same size (1536x1536px)
+                # maps and SLO are expected to be the same size (1536x1536px) -- give debug error if not
                 if map_img.size != slo.size:
                     raise ValueError(f"{pair['exam_id']} {key}: map is {map_img.size}, SLO is {slo.size}")
 
