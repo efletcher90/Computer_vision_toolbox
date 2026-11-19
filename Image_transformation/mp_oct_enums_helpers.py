@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import pandas as pd
+import csv
 import PIL.Image as Image
 from PIL import ImageDraw
 import math
@@ -11,8 +13,8 @@ OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Clevela
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
-EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_lookup_unique.csv'
-RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_lookup_unique.csv'
+EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_LUT_v2.csv'
+RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_LUT_v2.csv'
 
 # wanted keys to patient metadata stored in 'projection.xml' dict
 METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
@@ -20,7 +22,7 @@ METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDeg
                  'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix', 'fixationCenterX',
                  'fixationCenterY'
                  ]
-# microperimetry db colour values, as shown in pdf files
+# microperimetry db colour values, as shown in PDF files
 DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E5C', '3': '#C41E40', '4': '#E11E27',
                     '5': '#EE2025', '6': '#EE2125', '7': '#EE2524', '8': '#EF2924', '9': '#EF3024', '10': '#EF3723',
                     '11': '#F04022', '12': '#F04922', '13': '#F05122', '14': '#F15C23', '15': '#F16623',
@@ -106,16 +108,37 @@ def _number_multiple_recordings_in_visit(p_data):
 
     return p_data
 
-def _rgb_to_thickness(map_path, lut_csv, max_colour_distance=15):
-    # nearest colour in the lookup table (csv columns: R, G, B, mean_um) for every pixel
-    lut = np.genfromtxt(lut_csv, delimiter=',', names=True, usecols=('R', 'G', 'B', 'mean_um'))
-    lut_rgb = np.column_stack([lut['R'], lut['G'], lut['B']]).astype(float)
+def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
+   # use csv to open the lut_csv corresponding to the thickness:colour mapping from Cleveland
+    with open(lut_csv, newline='', encoding='utf-8') as lut_csv:
+        rows = [{k.strip(): v for k, v in row.items()} for row in csv.DictReader(lut_csv)]
 
-    rgb = np.array(Image.open(map_path).convert("RGB"))
-    colours, inverse = np.unique(rgb.reshape(-1, 3), axis=0, return_inverse=True)
-    distances = np.linalg.norm(colours[:, None, :].astype(float) - lut_rgb[None, :, :], axis=2)
+        # create a dict of key=RGB pixel data as a tuple and value=thickness in microns
+        um_rgb_dict = {(int(r['R']), int(r['G']), int(r['B'])): float(r['mean_um']) for r in rows}
 
-    values = lut['mean_um'][distances.argmin(axis=1)].astype(float)
-    values[distances.min(axis=1) > max_colour_distance] = np.nan
+        # arrays of the table colours and thicknesses, in the same order, for the nearest colour search
+        lut_rgb = np.array(list(um_rgb_dict.keys()), dtype=float)
+        lut_um = np.array(list(um_rgb_dict.values()))
 
-    return values[inverse.ravel()].reshape(rgb.shape[:2])
+        rgb_img = np.array(Image.open(map_img).convert('RGB'))
+
+        # reshape image as a series of 1D pixels. Then align to the closest RGB value in the LUT for that pixel
+        colours, inverse = np.unique(rgb_img.reshape(-1, 3), axis=0, return_inverse=True)
+        distances = np.linalg.norm(colours[:, None, :].astype(float) - lut_rgb[None, :, :], axis=2)
+
+        values = lut_um[distances.argmin(axis=1)]
+
+        # Register any pixel that has a corresponding thickness greater than the max_rgb_thickness variable to NaN
+        # This way these will not be overlaid onto the final SLO image. We're not interested in any thicknesses that are
+        # greater than ~30um... this is the current parameter for the helper fn
+        values[distances.min(axis=1) > max_rgb_thickness] = np.nan
+
+        # return the map png as an array as well as the pixel rgb/thickness values
+        return rgb_img, values[inverse.ravel()].reshape(rgb_img.shape[:2])
+
+
+
+
+
+
+

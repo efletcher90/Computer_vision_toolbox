@@ -27,9 +27,6 @@ class OctThicknessMapping:
             slo = Image.fromarray(pair['slo_img']).convert("RGB")
 
             for key, values in (('ez_rpe_map', ez_values), ('rpe_bm_map', rpe_values)):
-                if values is None:
-                    pair[f'{key}_thin_overlay'] = None
-                    continue
                 rgb, thickness = values
                 map_img = Image.fromarray(rgb)
 
@@ -37,10 +34,9 @@ class OctThicknessMapping:
                 in_range = (thickness >= min_um) & (thickness <= max_um)
                 mask = Image.fromarray(in_range.astype(np.uint8) * 255)
 
-                # match the map and mask to the SLO size (nearest keeps colours and the mask exact)
+                # maps and SLO are expected to be the same size (1536x1536px)
                 if map_img.size != slo.size:
-                    map_img = map_img.resize(slo.size, Image.Resampling.NEAREST)
-                    mask = mask.resize(slo.size, Image.Resampling.NEAREST)
+                    raise ValueError(f"{pair['exam_id']} {key}: map is {map_img.size}, SLO is {slo.size}")
 
                 # map colour where the mask is white, SLO everywhere else
                 pair[f'{key}_thickness_overlay'] = Image.composite(map_img, slo, mask)

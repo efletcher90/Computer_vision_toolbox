@@ -212,18 +212,31 @@ class FundusOverlays:
             print(f"Saved: {save_path}")
             img.save(save_path)
 
-    # def overlay_thickness_maps_to_oct(self, registered_pairs):
-    #     save_dir = os.path.join(self.output_dir, f"Thickness_map_overlays_{self.timestamp}")
-    #     os.makedirs(save_dir, exist_ok=True)
-    #
-    #     for pair in registered_pairs:
-    #         ez_map = pair['ez_map']
-    #         rpe_map = pair['rpe_map']
-    #         slo_img = pair['slo_img']
-    #
-    #         slo = Image.fromarray(pair['slo_img']).convert("RGB")
-    #
-    #         draw = ImageDraw.Draw(slo)
+    def overlay_thickness_maps_to_oct(self, registration_data):
+        save_dir = os.path.join(self.output_dir, f"Thickness_map_overlays_{self.timestamp}")
+        os.makedirs(save_dir, exist_ok=True)
+
+        for pair in registration_data:
+            image_name = f"{pair['patient_id']}_{pair['exam_id']}_{pair['eye']}_{pair['timepoint']}"
+
+            # one overlay per map: EZ-RPE on the SLO, and RPE-BM on the SLO
+            outputs = {'EZ_RPE': pair.get('ez_rpe_map_thin_overlay'),
+                       'RPE_BM': pair.get('rpe_bm_map_thin_overlay')}
+
+            # keep the two map composites (unlabelled) for overlay_stim_ellipses_to_oct
+            pair['oct_canvases'] = {label: img for label, img in outputs.items() if img is not None}
+
+            for label, img in pair['oct_canvases'].items():
+                # copy so the stored overlay stays clean for the stimulus overlay step
+                img = img.copy()
+                ImageDraw.Draw(img).text((img.width - 20, 20), f"{image_name} - {label} 0-30um",
+                                         fill="#FFFFFF", anchor="ra", font=self.font)
+
+                save_path = os.path.join(save_dir, f"{image_name}_{label}_thickness_overlay.png")
+                img.save(save_path)
+                print(f"Saved: {save_path}")
+
+        return save_dir
 
     def overlay_stim_ellipses_to_oct(self, registered_pairs):
         save_dir = os.path.join(self.output_dir, f"Registered_MP_OCT_overlays_{self.timestamp}")
@@ -237,23 +250,26 @@ class FundusOverlays:
 
             points_slo = transform.apply(np.array([[s['px_x'], s['px_y']] for s in stims]))
 
-            # raw SLO image as the canvas (RGB so the stimuli are colour coded)
-            img = Image.fromarray(pair['slo_img']).convert("RGB")
-            draw = ImageDraw.Draw(img)
+            # draw on each thickness map composite instead of the raw SLO
+            for label, canvas in pair.get('oct_canvases', {}).items():
+                img = canvas.copy()
+                draw = ImageDraw.Draw(img)
 
-            # draw the transformed stimuli, colour coded by intensity
-            for stim, (px_x, px_y) in zip(stims, points_slo):
-                intensity = stim['intensity']
-                colour_key = "<0" if intensity < 0 else str(intensity)
-                # make the intnesity annotations white if the ellipsis is black or dark, otherwise make black
-                fill = "#000000" if intensity > 1 else "#FFFFFF"
-                draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
-                draw.text((px_x, px_y), str(intensity), fill=fill, anchor="mm", font_size=22)
+                # draw the transformed stimuli, colour coded by intensity
+                for stim, (px_x, px_y) in zip(stims, points_slo):
+                    intensity = stim['intensity']
+                    colour_key = "<0" if intensity < 0 else str(intensity)
+                    # make the intnesity annotations white if the ellipsis is black or dark, otherwise make black
+                    fill = "#000000" if intensity > 1 else "#FFFFFF"
+                    draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
+                    draw.text((px_x, px_y), str(intensity), fill=fill, anchor="mm", font_size=22)
 
-            # image identifier and save
-            image_name = f"{pair['patient_id']}_{pair['eye']}Eye_{pair['timepoint']}"
-            draw.text((img.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
-            save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
-            img.save(save_path)
+                # image identifier and save
+                image_name = f"{pair['patient_id']}_{pair['eye']}Eye_{pair['timepoint']}"
+                draw.text((img.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
+                save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
+                img.save(save_path)
 
-            print(f"Saved: {save_path}")
+                print(f"Saved: {save_path}")
+
+        return save_dir
