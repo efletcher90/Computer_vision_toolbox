@@ -260,12 +260,12 @@ class FundusOverlays:
                     draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
                     draw.text((px_x, px_y), str(intensity), fill=_stim_text_hex(intensity), anchor="mm", font_size=22)
 
-                    # image identifier and save
-                    image_name = f"{pair['patient_id']}_{pair['eye']}Eye_{pair['timepoint']}"
-                    draw.text((canvas.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
-                    save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
+                # image identifier and save
+                image_name = f"{pair['patient_id']}_{pair['eye']}Eye__{label}_{pair['timepoint']}"
+                draw.text((canvas.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
+                save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
 
-                    canvas.save(save_path)
+                canvas.save(save_path)
 
-                    print(f"Saved: {save_path}")
+                print(f"Saved: {save_path}")
 
