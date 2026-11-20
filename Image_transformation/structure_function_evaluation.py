@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import stats
 
 class StructureFunctionAnalysis:
     def __init__(self, registration_data, stim_radius=11):
@@ -20,7 +21,7 @@ class StructureFunctionAnalysis:
             rpe_um = scan['rpe_px_thicknesses'][1]
 
             for stim in scan['stimuli']:
-                x, y = stim['trans_px_x'], stim['trans_px_y']
+                x, y = stim['transf_px_x'], stim['transf_px_y']
                 x_int, y_int = int(round(x)), int(round(y))
 
                 # square window around the stimulus, and the pixels within its disk. Indexing is [row, column] = [y, x] --- got some AI help here!
@@ -48,10 +49,37 @@ class StructureFunctionAnalysis:
 
         return sf_dict
 
-    def linear_regression(self, sf_data):
+    @staticmethod
+    def linear_regression(sf_data, x_key='mean_rpe_bm_um'):
+        x_values = []
+        y_values = []
 
+        for v in sf_data:
+            x = v[x_key]
+            y = v['sensitivity_db']
 
+            # skip stimuli outside the scan (i.e. NaN thickness) and not-seen points
+            if np.isnan(x) or y < 0:
+                continue
 
+            x_values.append(x)
+            y_values.append(y)
+
+        # run linear regression
+        slope, intercept, r, p, std_err = stats.linregress(x_values, y_values)
+
+        # fitted line from the smallest to the largest x
+        x_line = np.array([min(x_values), max(x_values)])
+        y_line = slope * x_line + intercept
+
+        plt.scatter(x_values, y_values, s=15)
+        plt.plot(x_line, y_line, color='red')
+        plt.xlabel(f'{x_key} (µm)')
+        plt.ylabel(f'{'Retinal sensitivity (db)'}')
+        plt.title(f'slope {slope:.3f} dB/µm, r={r:.2f}, p={p:.3g}, n={len(x_values)}')
+        plt.show()
+
+        return slope, intercept, r, p, std_err
 
     # def interpolated_structure_function_dicts(self):
 
