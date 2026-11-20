@@ -9,18 +9,24 @@ class OctThicknessMapping:
         self.rpe_lut_csv = rpe_lut_csv
 
     def get_pixel_thickness_values(self):
-        rgb_values_ez = []
-        rgb_values_rpe = []
+        ez_thickness_values = []
+        rpe_thickness_values = []
 
         for t_map in self.registered_pairs:
             ez_img = t_map['ez_rpe_map']
             rpe_img = t_map['rpe_bm_map']
 
             # each entry is a tuple of the map and thickness data (ndarrays; or None if the map is missing)
-            rgb_values_ez.append(_rgb_to_thickness(ez_img, self.ez_lut_csv) if ez_img else None)
-            rgb_values_rpe.append(_rgb_to_thickness(rpe_img, self.rpe_lut_csv) if rpe_img else None)
+            ez_values = _rgb_to_thickness(ez_img, self.ez_lut_csv) if ez_img else None
+            rpe_values = _rgb_to_thickness(rpe_img, self.rpe_lut_csv) if rpe_img else None
 
-        return rgb_values_ez, rgb_values_rpe
+            ez_thickness_values.append(ez_values)
+            rpe_thickness_values.append(rpe_values)
+
+            # add this visit's thicknesses to its own pair for later use
+            t_map.update({'ez_px_thicknesses': ez_values, 'rpe_px_thicknesses': rpe_values})
+
+        return ez_thickness_values, rpe_thickness_values
 
     def overlay_rgb_maps(self, rgb_values_ez, rgb_values_rpe, min_um=0, max_um=30):
         for pair, ez_values, rpe_values in zip(self.registered_pairs, rgb_values_ez, rgb_values_rpe):

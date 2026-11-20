@@ -57,7 +57,7 @@ class FundusRegistrator:
         oct_mp_pairs = []
 
         for patient in self.p_data_coords_dicts:
-            # only use the second baseline recording for each eye in the folder--- will need to confirm that this is fine later
+            # only use the second baseline recording for each eye in the folder --- will need to confirm that this is fine later
             if patient['timepoint'].lower() == 'baseline' and patient['repeat'] == 1:
                 continue
 

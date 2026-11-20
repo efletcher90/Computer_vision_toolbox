@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import pandas as pd
 import csv
 import PIL.Image as Image
 from PIL import ImageDraw
@@ -13,15 +12,14 @@ OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Clevela
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
-EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_LUT_v2.csv'
-RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_LUT_v2.csv'
+EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_LUT.csv'
+RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_LUT.csv'
 
 # wanted keys to patient metadata stored in 'projection.xml' dict
 METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
-                 'examPRLY_pix',
-                 'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix', 'fixationCenterX',
-                 'fixationCenterY'
-                 ]
+                 'examPRLY_pix', 'baselinePRLX_pix', 'baselinePRLY_pix', 'baselineShiftX_pix', 'baselineShiftY_pix',
+                  'fixationCenterX', 'fixationCenterY']
+
 # microperimetry db colour values, as shown in PDF files
 DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E5C', '3': '#C41E40', '4': '#E11E27',
                     '5': '#EE2025', '6': '#EE2125', '7': '#EE2524', '8': '#EF2924', '9': '#EF3024', '10': '#EF3723',
@@ -38,23 +36,23 @@ DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E
 #to QC check the overlay of mp stim points and the png still image provided. Compare to the pdfs in the respective folders
 def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     os.makedirs(out_dir, exist_ok=True)
-    g = lambda k: float(patient.get(k, 0))
+    grid = lambda k: float(patient.get(k, 0))
     candidates = {
         "image_centre":   (0, 0),
-        "bl_prl":         (g("baselinePRLX_pix"), g("baselinePRLY_pix")),
-        "bl_prl_minus_shift":(g("baselinePRLX_pix") - g("baselineShiftX_pix"),
-                           g("baselinePRLY_pix") - g("baselineShiftY_pix")),
-        "exam_prl":       (g("examPRLX_pix"), g("examPRLY_pix")),
-        "bl_prl_xflip":   (-g("baselinePRLX_pix"), g("baselinePRLY_pix")),
-        "exam_prl_xflip": (-g("examPRLX_pix"), g("examPRLY_pix")),
-        "bl_prl_swap": (-g("baselinePRLY_pix"), g("baselinePRLX_pix")),
-        "bl_prl_swap_neg": (g("baselinePRLY_pix"), -g("baselinePRLX_pix")),
+        "bl_prl":         (grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
+        "bl_prl_minus_shift":(grid("baselinePRLX_pix") - grid("baselineShiftX_pix"),
+                           grid("baselinePRLY_pix") - grid("baselineShiftY_pix")),
+        "exam_prl":       (grid("examPRLX_pix"), grid("examPRLY_pix")),
+        "bl_prl_xflip":   (-grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
+        "exam_prl_xflip": (-grid("examPRLX_pix"), grid("examPRLY_pix")),
+        "bl_prl_swap": (-grid("baselinePRLY_pix"), grid("baselinePRLX_pix")),
+        "bl_prl_swap_neg": (grid("baselinePRLY_pix"), -grid("baselinePRLX_pix")),
 
     }
     arr = np.array(Image.open(patient["scan_path"]), dtype=np.uint16)
     base = Image.fromarray((arr >> 8).astype(np.uint8)).convert("RGB")
     width, height = base.size
-    scale = width / g("fieldDegreesX")
+    scale = width / grid("fieldDegreesX")
 
     for name, (dx, dy) in candidates.items():
         for ysign, ylabel in ((-1, "yup"), (1, "ydown")):
@@ -140,10 +138,3 @@ def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
 
         # return the map png as well as the thickness map, both as ndarrays --- stored together as a tuple
         return rgb_img, values[inverse.ravel()].reshape(rgb_img.shape[:2])
-
-
-
-
-
-
-

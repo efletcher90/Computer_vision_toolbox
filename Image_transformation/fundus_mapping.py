@@ -245,15 +245,19 @@ class FundusOverlays:
             # transform the stim coordinates from the MP still into the SLO pixel frame
             stims = pair['stimuli']
 
-            points_slo = transform.apply(np.array([[s['px_x'], s['px_y']] for s in stims]))
+            transf_stim_coords = transform.apply(np.array([[s['px_x'], s['px_y']] for s in stims]))
+
+            # add the transformed x, y coordinates to the registration_data to be carried to the evaluations later
+            for data, (t_x, t_y) in zip(stims, transf_stim_coords):
+                data.update({'transf_px_x':t_x, 'transf_px_y':t_y})
 
             # draw on each thickness map composite, found in the pair>thickness_map_overlays
             for label, canvas in pair.get('thickness_map_overlays', {}).items():
-                # img = canvas.copy()
+
                 draw = ImageDraw.Draw(canvas)
 
                 # draw the transformed stimuli, colour coded by intensity
-                for stim, (px_x, px_y) in zip(stims, points_slo):
+                for stim, (px_x, px_y) in zip(stims, transf_stim_coords):
                     intensity = stim['intensity']
                     colour_key = "<0" if intensity < 0 else str(intensity)
 
@@ -261,7 +265,7 @@ class FundusOverlays:
                     draw.text((px_x, px_y), str(intensity), fill=_stim_text_hex(intensity), anchor="mm", font_size=22)
 
                 # image identifier and save
-                image_name = f"{pair['patient_id']}_{pair['eye']}Eye__{label}_{pair['timepoint']}"
+                image_name = f"{pair['patient_id']}_{pair['eye']}Eye_{label}_{pair['timepoint']}"
                 draw.text((canvas.width - 20, 20), image_name, fill="#FFFFFF", anchor="ra", font=self.font)
                 save_path = os.path.join(save_dir, f"{image_name}_MP_OCT_transformed.png")
 
