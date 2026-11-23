@@ -45,10 +45,10 @@ def main(test_grid_centres_flag=False):
     overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
 
-    sf_data = StructureFunctionAnalysis(registration_data, SLO_PX_PER_DEG)
+    sf_data = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
 
-    # direct_sf_dict = sf_data.direct_structure_function_measurement()
-    interp_sf_dict = sf_data.interpolated_structure_function_measurement()
+    sf_data.direct_structure_function_measurement()
+    sf_data.interpolated_sensitivity_map()
 
     # sf_data.linear_mixed_model(sf_dict)
     # sf_data.linear_regression(sf_dict)
