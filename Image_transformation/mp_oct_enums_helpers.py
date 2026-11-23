@@ -5,6 +5,7 @@ import PIL.Image as Image
 from PIL import ImageDraw
 import math
 import cv2
+from matplotlib.colors import ListedColormap
 
 # --- Enums -------- #
 # dir for mp and oct data
@@ -29,6 +30,9 @@ DB_COLOUR_VALUES = {'<0': '#060608', '0': '#672B8D', '1': '#842577', '2': '#A31E
                     '26': '#A3CD3A', '27': '#8AC53F', '28': '#73BF43', '29': '#59BA46', '30': '#43B648',
                     '31': '#31B349', '32': '#27B24A', '33': '#1DAE4A', '34': '#16A649', '35': '#119C48',
                     '36': '#0E9245'}
+
+# for the OCT still image, get the number of pixels per degree to 1 dp
+SLO_PX_PER_DEG = round(float(1536 / 30), 1)
 
 # ------------------ #
 # helper functions. These have been separated for Class tidiness
@@ -138,3 +142,10 @@ def _rgb_to_thickness(map_img, lut_csv, max_rgb_thickness=30):
 
         # return the map png as well as the thickness map, both as ndarrays --- stored together as a tuple
         return rgb_img, values[inverse.ravel()].reshape(rgb_img.shape[:2])
+
+def _mp_matplotlib_colourmap():
+    # slice the dictionary values from the second entry onwards, the black for <0 dB is ignored as required
+    colours = list(DB_COLOUR_VALUES.values())[1:]
+    mp_cmap = ListedColormap(colours, name='mp_cmap')
+
+    return mp_cmap

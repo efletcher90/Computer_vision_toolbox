@@ -47,4 +47,3 @@ class OctThicknessMapping:
 
                 # map colour where the mask is white, SLO everywhere else
                 pair[f'{key}_thickness_overlay'] = Image.composite(map_img, slo, mask)
-

@@ -272,4 +272,3 @@ class FundusOverlays:
                 canvas.save(save_path)
 
                 print(f"Saved: {save_path}")
-

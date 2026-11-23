@@ -1,11 +1,17 @@
 import numpy as np
+from PIL import Image
+from pykrige.ok import OrdinaryKriging
+from scipy.spatial import Delaunay
 import matplotlib.pyplot as plt
-from scipy import stats
+from matplotlib.colors import BoundaryNorm
+from mp_oct_enums_helpers import _mp_matplotlib_colourmap
 
 class StructureFunctionAnalysis:
-    def __init__(self, registration_data, stim_radius=11):
+    def __init__(self, registration_data, px_per_deg, stim_radius=11):
         self.registration_data = registration_data
+        self.px_per_deg = px_per_deg
         self.stim_radius = stim_radius
+        self.mp_cmap = _mp_matplotlib_colourmap()
 
         # The MP stillImage.png has 1024 px over the "fieldDegreesX = 36.5°"  so:  1024 / 36.5 = 28.05 px/°
         # For the OCT SLO, it has 1536 px over a 30° field (presented in protocol), so:  1536 / 30 = 51.2 px/°
@@ -49,37 +55,106 @@ class StructureFunctionAnalysis:
 
         return sf_dict
 
-    @staticmethod
-    def linear_regression(sf_data, x_key='mean_rpe_bm_um'):
-        x_values = []
-        y_values = []
+    # interpolate a function map around the stimulation sites and align with structure maps. Spatial interpolation
+    # investigated using geospatial kriging methods.
+    def interpolated_structure_function_measurement(self, shape=(1536, 1536), plot = True):
+        # Kriging for every SLO pixel from the transformed stimulus positions. This makes one map per scan
+        # SLO image shape, thrown to variable instead of 1536x1536 hardcoded
+        h, w = shape
+        yy, xx = np.mgrid[0:h, 0:w]
 
-        for v in sf_data:
-            x = v[x_key]
-            y = v['sensitivity_db']
+        for scan in self.registration_data:
+            stimuli = scan['stimuli']
+            x_values = np.array([stim['transf_px_x'] for stim in stimuli])
+            y_values = np.array([stim['transf_px_y'] for stim in stimuli])
 
-            # skip stimuli outside the scan (i.e. NaN thickness) and not-seen points
-            if np.isnan(x) or y < 0:
-                continue
+            # -1 is set to 0 dB so the map doesn't bridge across the scotoma
+            db_values = np.array([stim['intensity'] if stim['intensity'] >= 0 else 0 for stim in stimuli], dtype=float)
 
-            x_values.append(x)
-            y_values.append(y)
+            # fit the variogram in degrees, so its range reads as a retinal distance (1536 px / 30 degrees = 51.2 px/deg)
+            ok = OrdinaryKriging(x_values / self.px_per_deg, y_values / self.px_per_deg, db_values, variogram_model='spherical', nlags=6, enable_plotting=False)
 
-        # run linear regression
-        slope, intercept, r, p, std_err = stats.linregress(x_values, y_values)
+            sill, vrange, nugget = ok.variogram_model_parameters
+            print(
+                f"{scan['exam_id']} {scan['timepoint']}: sill {sill:.1f}, range {vrange:.1f} deg, nugget {nugget:.1f}")
 
-        # fitted line from the smallest to the largest x
-        x_line = np.array([min(x_values), max(x_values)])
-        y_line = slope * x_line + intercept
+            # predict on a coarse grid (every `step` px), then resize to full SLO resolution
+            grid_x = np.arange(0, w, step=8) / self.px_per_deg
+            grid_y = np.arange(0, h, step=8) / self.px_per_deg
+            z, variance = ok.execute('grid', grid_x, grid_y)
 
-        plt.scatter(x_values, y_values, s=15)
-        plt.plot(x_line, y_line, color='red')
-        plt.xlabel(f'{x_key} (µm)')
-        plt.ylabel(f'{'Retinal sensitivity (db)'}')
-        plt.title(f'slope {slope:.3f} dB/µm, r={r:.2f}, p={p:.3g}, n={len(x_values)}')
-        plt.show()
+            sens_map = np.array(Image.fromarray(np.asarray(z, dtype=np.float32)).resize((w, h), Image.Resampling.BILINEAR))
+            var_map = np.array(Image.fromarray(np.asarray(variance, dtype=np.float32)).resize((w, h), Image.Resampling.BILINEAR))
 
-        return slope, intercept, r, p, std_err
+            # blank everything outside the outermost stimuli (I don't want kriging to extrapolate outside the mp area)
+            hull = Delaunay(np.column_stack([x_values, y_values]))
+            outside = hull.find_simplex(np.column_stack([xx.ravel(), yy.ravel()])).reshape(h, w) < 0
+            sens_map[outside] = np.nan
+            var_map[outside] = np.nan
+
+            # store on the scan for plotting and pixel pairing later. np.clip() the sensitivity info to MAIA's 0-36 dB stim range
+            scan['sens_map'] = np.clip(sens_map, 0, 36)
+            scan['sens_var_map'] = var_map
+            scan['kriging_model'] = ok
+
+        # visual for the readout fo reach map, turn off via the kwarg in function
+
+        # one bin per whole dB (0-36), so each value gets its own colour from the list, in order
+        mp_norm = BoundaryNorm(np.arange(-0.5, 37.5, 1), self.mp_cmap.N)
+
+        if plot:
+            scan = self.registration_data[0]
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+            ax1.imshow(scan['slo_img'], cmap='gray')
+            im1 = ax1.imshow(scan['sens_map'], cmap=self.mp_cmap, norm=mp_norm, alpha=0.7)
+            ax1.set_title('Kriged sensitivity (dB)')
+            cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, ticks=range(0, 37, 6), label='Sensitivity (dB)')
+            cbar.minorticks_off()
+            im2 = ax2.imshow(scan['sens_var_map'], cmap='magma_r')
+            ax2.set_title('Kriging variance')
+            fig.colorbar(im2, ax=ax2, fraction=0.046)
+            for ax in (ax1, ax2):
+                ax.axis('off')
+            plt.show()
+
+        return self.registration_data
+
+
+    # linear regression models are too crude for the dataset - use Bayesian LMM
+    # @staticmethod
+    # def linear_regression(sf_data, x_key='mean_rpe_bm_um'):
+    #     x_values = []
+    #     y_values = []
+    #
+    #     for v in sf_data:
+    #         x = v[x_key]
+    #         y = v['sensitivity_db']
+    #
+    #         # skip stimuli outside the scan (i.e. NaN thickness) and not-seen points
+    #         if np.isnan(x) or y < 0:
+    #             continue
+    #
+    #         x_values.append(x)
+    #         y_values.append(y)
+    #
+    #     # run linear regression
+    #     slope, intercept, r, p, std_err = stats.linregress(x_values, y_values)
+    #
+    #     # fitted line from the smallest to the largest x
+    #     x_line = np.array([min(x_values), max(x_values)])
+    #     y_line = slope * x_line + intercept
+    #
+    #     plt.scatter(x_values, y_values, s=15)
+    #     plt.plot(x_line, y_line, color='red')
+    #     plt.xlabel(f'{x_key} (µm)')
+    #     plt.ylabel(f'{'Retinal sensitivity (db)'}')
+    #     plt.title(f'slope {slope:.3f} dB/µm, r={r:.2f}, p={p:.3g}, n={len(x_values)}')
+    #     plt.show()
+    #
+    #     return slope, intercept, r, p, std_err
+
+# Work on a mixed-model stats plot and the interpolated map and run with plot, then look at the perilesion area
+
 
     # def interpolated_structure_function_dicts(self):
 

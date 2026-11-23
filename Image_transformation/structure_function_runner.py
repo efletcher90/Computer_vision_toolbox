@@ -4,7 +4,7 @@ from Image_transformation.fundus_registration import FundusRegistrator
 from Image_transformation.structure_function_evaluation import StructureFunctionAnalysis
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
                                                        _test_grid_centres, _number_multiple_recordings_in_visit,
-                                                       AAVB_FONT, EZ_LUT, RPE_LUT)
+                                                       AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG)
 import os
 import time
 
@@ -45,10 +45,13 @@ def main(test_grid_centres_flag=False):
     overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
 
-    sf_data = StructureFunctionAnalysis(registration_data)
-    sf_dict = sf_data.direct_structure_function_measurement()
+    sf_data = StructureFunctionAnalysis(registration_data, SLO_PX_PER_DEG)
 
-    sf_data.linear_regression(sf_dict)
+    # direct_sf_dict = sf_data.direct_structure_function_measurement()
+    interp_sf_dict = sf_data.interpolated_structure_function_measurement()
+
+    # sf_data.linear_mixed_model(sf_dict)
+    # sf_data.linear_regression(sf_dict)
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
