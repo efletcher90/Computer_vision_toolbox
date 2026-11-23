@@ -3,7 +3,7 @@ from Image_transformation.oct_thickness_mapping import OctThicknessMapping
 from Image_transformation.fundus_registration import FundusRegistrator
 from Image_transformation.structure_function_evaluation import StructureFunctionAnalysis
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
-                                                       _test_grid_centres, _number_multiple_recordings_in_visit,
+                                                       _test_grid_centres, _number_multiple_recordings_at_timepoint,
                                                        AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG)
 import os
 import time
@@ -14,7 +14,7 @@ def main(test_grid_centres_flag=False):
 
     mp_files, patient_id = xml_parser.get_mp_list()
     patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
-    patient_data_dicts = _number_multiple_recordings_in_visit(patient_data_dicts)
+    patient_data_dicts = _number_multiple_recordings_at_timepoint(patient_data_dicts)
 
     calculator = CalculateMicroperimetryCoordinates(patient_data_dicts)
     data_with_coords = calculator.calculate_pixel_coordinates()
@@ -49,9 +49,9 @@ def main(test_grid_centres_flag=False):
 
     sf_data.direct_structure_function_measurement()
 
-    lmm_both = sf_data.sf_linear_mixed_model_fitting()
-    lmm_ez = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'])
-    lmm_rpe = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'])
+    lmm_both = sf_data.sf_linear_mixed_model_fitting(plot_name=f"Combined model: each layer adjusted for the other, timepoint and stim_id")
+    lmm_ez = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only model: adjusted for timepoint and stim_id")
+    lmm_rpe = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE-loss-only model: adjusted for timepoint and stim_id")
 
     sf_data.interpolated_kriged_sensitivity_map()
     # sf_data.scotoma_and_layer_loss_correlation()
@@ -60,4 +60,3 @@ def main(test_grid_centres_flag=False):
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
-

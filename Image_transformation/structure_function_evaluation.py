@@ -3,6 +3,7 @@ from PIL import Image
 from pykrige.ok import OrdinaryKriging
 import pandas as pd
 import os
+import seaborn as sns
 from scipy.spatial import Delaunay
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
@@ -59,7 +60,12 @@ class StructureFunctionAnalysis:
                                )
 
     # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
-    def sf_linear_mixed_model_fitting(self, adjust_for_visit=True, thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'), not_seen='exclude'):
+    def sf_linear_mixed_model_fitting(self, adjust_for_timepoint=True,
+                                      thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'),
+                                      not_seen='exclude',
+                                      plot_name=None
+                                      ):
+
         save_dir = os.path.join(self.output_dir, f"LMM_plots_{self.timestamp}")
         os.makedirs(save_dir, exist_ok=True)
 
@@ -73,40 +79,49 @@ class StructureFunctionAnalysis:
         # keep stimuli with a thickness for every layer in the model (drops points outside the OCT scan)
         df = df.dropna(subset=list(thickness_cols))
 
-        # fixed effects: each layer's thickness, optionally adjusted for visit
+        # fixed effects: each layer's thickness, optionally adjusted for timepoint
         formula = 'sensitivity_db ~ ' + ' + '.join(thickness_cols)
-        if adjust_for_visit:
+        if adjust_for_timepoint:
             formula += ' + C(timepoint)'
 
         n_eyes = df[['patient_id', 'eye']].drop_duplicates().shape[0]
 
         if n_eyes > 1:
-            # several eyes: random intercept per eye, plus a variance component for each location within an eye
+            # several eyes: random intercept per eye, plus a variance component for each stim_id location within an eye
             df['eye_id'] = df['patient_id'].astype(str) + '_' + df['eye'].astype(str)
-            model = smf.mixedlm(formula, df, groups=df['eye_id'], vc_formula={'location': '0 + C(stimulus_id)'})
+            model = smf.mixedlm(formula, df, groups=df['eye_id'], vc_formula={'stimulus_id': '0 + C(stimulus_id)'})
         else:
-            # one eye: random intercept per test location, since each location is retested at every visit
+            # one eye: random intercept per test stim_id, since each stim_id location is retested at every timepoint
             model = smf.mixedlm(formula, df, groups=df['stimulus_id'])
 
         result = model.fit(reml=True)
         print(f"n={len(df)} observations, {n_eyes} eye(s), {df['stimulus_id'].nunique()} locations, not seen: {not_seen}")
         print(result.summary())
 
-        # plot the LMM
-        fig, axes = plt.subplots(1, len(thickness_cols), figsize=(5.5 * len(thickness_cols), 4.5), sharey=True)
-        for ax, col in zip(np.atleast_1d(axes), thickness_cols):
+        labels = {'direct_ez_mean_thickness': 'EZ–RPE thickness (µm)',
+                  'direct_rpe_mean_thickness': 'RPE–BM thickness (µm)'}
 
-            # vary this layer, hold the other layer(s) at their mean and visit at the most common one
-            new = pd.DataFrame({c: [df[c].mean()] * 100 for c in thickness_cols})
-            new[col] = np.linspace(df[col].min(), df[col].max(), 100)
-            new['timepoint'] = df['timepoint'].mode()[0]
+        not_seen_df = pd.DataFrame(self.sf_dict).query('sensitivity_db < 0')
 
-            ax.scatter(df[col], df['sensitivity_db'], s=15, alpha=0.5)
-            ax.plot(new[col], result.predict(new), color='black', linewidth=2)
-            ax.set_xlabel(f"{col} (µm)")
-            ax.set_title(f"{result.fe_params[col]:+.2f} dB per µm, p = {result.pvalues[col]:.3g}")
+        fig, axes = plt.subplots(1, len(thickness_cols), figsize=(5.5 * len(thickness_cols), 4.5), sharey=True, squeeze=False)
 
-        np.atleast_1d(axes)[0].set_ylabel('Sensitivity (dB)')
+        for ax, col in zip(axes[0], thickness_cols):
+            b = result.fe_params[col]
+            # partial residuals: each point with the other layer, timepoint and stim_id effects removed (on the dB scale)
+            df['adjusted_db'] = result.resid + b * df[col] + (df['sensitivity_db'].mean() - b * df[col].mean())
+
+            # scatter + fitted line + 95% CI; units= resamples whole stim_id locations, so the band accounts for repeated measures
+            sns.regplot(data=df, x=col, y='adjusted_db', units='stimulus_id', ax=ax,
+                        scatter_kws={'s': 15, 'alpha': 0.5}, line_kws={'color': 'black'})
+
+            # not-seen stimuli (excluded from the fit) along the bottom
+            sns.scatterplot(x=not_seen_df[col], y=-2, marker='X', color='grey', s=25, ax=ax)
+
+            p = result.pvalues[col]
+            ax.set(title=f"{plot_name} - ({b:+.2f} dB/µm, " + ("p<0.001" if p < 0.001 else f"p={p:.3f})"),
+                   xlabel=labels.get(col, col), ylabel='Sensitivity (dB), adjusted')
+
+        fig.tight_layout()
         fig.savefig(os.path.join(save_dir, f"{'_'.join(thickness_cols)}_sf_lmm_plot_{self.timestamp}.png"), dpi=300)
         plt.close(fig)
 
@@ -135,11 +150,6 @@ class StructureFunctionAnalysis:
             # fit the variogram in degrees, so its range reads as a retinal distance (1536 px / 30 degrees = 51.2 px/deg)
             ok = OrdinaryKriging(x_values / self.px_per_deg, y_values / self.px_per_deg, db_values,
                                  variogram_model='spherical', nlags=6, enable_plotting=False)
-
-            #debugging interpolation data - not really required
-            sill, vrange, nugget = ok.variogram_model_parameters
-            print(
-                f"{scan['exam_id']} {scan['timepoint']}: sill {sill:.1f}, range {vrange:.1f} deg, nugget {nugget:.1f}")
 
             # predict on a coarse grid (every `step` px), then resize to full SLO resolution
             grid_x = np.arange(0, w, step=8) / self.px_per_deg
@@ -193,7 +203,6 @@ class StructureFunctionAnalysis:
         # hence why there is still 4 dB of SD rather than 0.
 
     # def scotoma_and_layer_loss_correlation(self):
-
 
     # def perilesion_sf_analysis(self):
     #     pass

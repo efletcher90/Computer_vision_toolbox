@@ -99,8 +99,8 @@ def _normalise_eye(eye):
         return 'Right'
     return e
 
-def _number_multiple_recordings_in_visit(p_data):
-    # mp data can have 2 recordings per eye at a visit (e.g. 2 baselines).
+def _number_multiple_recordings_at_timepoint(p_data):
+    # mp data can have 2 recordings per eye at a timepoint (e.g. 2 baselines).
     # Store a sequential number (e.g. 1, 2), in date order, as under 'repeat' key,
     counts = {}
     for patient in sorted(p_data, key=lambda d: d['DateTime']):
