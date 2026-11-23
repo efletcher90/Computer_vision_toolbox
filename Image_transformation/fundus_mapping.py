@@ -77,10 +77,17 @@ class CreateMicroperimetryDataDicts:
                     stim_dict[stim_key] = stim_value
 
             sorted_stim_dict = dict(sorted(stim_dict.items()))
+            m_data = mp_data["MitProjection"]["Header"]
+
+            # need to filter out any failed scans that have less than the 68 used in the microperimetry SOP
+            n_stimuli = len([key for key in stim_dict if key != 'stimulus_00'])
+            if n_stimuli < 68:
+                continue
+
+            sorted_stim_dict = dict(sorted(stim_dict.items()))
 
             # add patient metadata k:v pairs to xml_dict
             xml_dict.update({'patient_id': p_id, 'scan_path': png_path, 'timepoint':timepoint})
-            m_data = mp_data["MitProjection"]["Header"]
             xml_dict.update({k: m_data[k] for k in self.metadata_keys if k in m_data})
             # the sorted stim data is added after the patient metadata so that the original order of the enum list is kept at the start of the dict
             xml_dict.update(sorted_stim_dict)

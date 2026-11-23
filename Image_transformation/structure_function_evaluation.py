@@ -1,11 +1,13 @@
 import numpy as np
 from PIL import Image
 from pykrige.ok import OrdinaryKriging
+import pandas as pd
 import os
 from scipy.spatial import Delaunay
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
 from mp_oct_enums_helpers import _mp_matplotlib_colourmap
+import statsmodels.formula.api as smf
 
 class StructureFunctionAnalysis:
     def __init__(self, registration_data, timestamp, px_per_deg, output_dir, stim_radius=11):
@@ -52,15 +54,68 @@ class StructureFunctionAnalysis:
                                 'sensitivity_db': stim['intensity'],
                                 'transf_px_x': round(float(x), 1),
                                 'transf_px_y': round(float(y), 1),
-                                'direct_ez_rpe_thickness': ez_pixels.mean() if ez_pixels.size else np.nan,
-                                'direct_rpe_bm_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan}
+                                'direct_ez_mean_thickness': ez_pixels.mean() if ez_pixels.size else np.nan,
+                                'direct_rpe_mean_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan}
                                )
+
+    # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
+    def sf_linear_mixed_model_fitting(self, adjust_for_visit=True, thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'), not_seen='exclude'):
+        save_dir = os.path.join(self.output_dir, f"LMM_plots_{self.timestamp}")
+        os.makedirs(save_dir, exist_ok=True)
+
+        df = pd.DataFrame(self.sf_dict)
+        # not_seen: 'exclude' drops -1 dB points. clip sets them to 0 dB
+        if not_seen == 'exclude':
+            df = df[df['sensitivity_db'] >= 0]
+        else:
+            df['sensitivity_db'] = df['sensitivity_db'].clip(lower=0)
+
+        # keep stimuli with a thickness for every layer in the model (drops points outside the OCT scan)
+        df = df.dropna(subset=list(thickness_cols))
+
+        # fixed effects: each layer's thickness, optionally adjusted for visit
+        formula = 'sensitivity_db ~ ' + ' + '.join(thickness_cols)
+        if adjust_for_visit:
+            formula += ' + C(timepoint)'
+
+        n_eyes = df[['patient_id', 'eye']].drop_duplicates().shape[0]
+
+        if n_eyes > 1:
+            # several eyes: random intercept per eye, plus a variance component for each location within an eye
+            df['eye_id'] = df['patient_id'].astype(str) + '_' + df['eye'].astype(str)
+            model = smf.mixedlm(formula, df, groups=df['eye_id'], vc_formula={'location': '0 + C(stimulus_id)'})
+        else:
+            # one eye: random intercept per test location, since each location is retested at every visit
+            model = smf.mixedlm(formula, df, groups=df['stimulus_id'])
+
+        result = model.fit(reml=True)
+        print(f"n={len(df)} observations, {n_eyes} eye(s), {df['stimulus_id'].nunique()} locations, not seen: {not_seen}")
+        print(result.summary())
+
+        # plot the LMM
+        fig, axes = plt.subplots(1, len(thickness_cols), figsize=(5.5 * len(thickness_cols), 4.5), sharey=True)
+        for ax, col in zip(np.atleast_1d(axes), thickness_cols):
+
+            # vary this layer, hold the other layer(s) at their mean and visit at the most common one
+            new = pd.DataFrame({c: [df[c].mean()] * 100 for c in thickness_cols})
+            new[col] = np.linspace(df[col].min(), df[col].max(), 100)
+            new['timepoint'] = df['timepoint'].mode()[0]
+
+            ax.scatter(df[col], df['sensitivity_db'], s=15, alpha=0.5)
+            ax.plot(new[col], result.predict(new), color='black', linewidth=2)
+            ax.set_xlabel(f"{col} (µm)")
+            ax.set_title(f"{result.fe_params[col]:+.2f} dB per µm, p = {result.pvalues[col]:.3g}")
+
+        np.atleast_1d(axes)[0].set_ylabel('Sensitivity (dB)')
+        fig.savefig(os.path.join(save_dir, f"{'_'.join(thickness_cols)}_sf_lmm_plot_{self.timestamp}.png"), dpi=300)
+        plt.close(fig)
+
+        return result
 
     # interpolate a function map around the stimulation sites and align with rpe/ez structural maps. Can be used to
     # investigate scotoma/EZ loss areas and progression
     # Spatial interpolation investigated using geospatial kriging methods.
-    def interpolated_sensitivity_map(self, slo_img_shape=(1536, 1536), plot_kriged_db_heat_map = True):
-        # timestamp the output folder for reconstruction
+    def interpolated_kriged_sensitivity_map(self, slo_img_shape=(1536, 1536), plot_kriged_db_heat_map = True):
         save_dir = os.path.join(self.output_dir, f"Kriged interpolated sensitivity maps_{self.timestamp}")
         os.makedirs(save_dir, exist_ok=True)
 
@@ -101,7 +156,7 @@ class StructureFunctionAnalysis:
             kriging_variance_map[outside] = np.nan
 
             # store on the scan for plotting and pixel pairing later. np.clip() the sensitivity info to MAIA's 0-36 dB stim range
-            scan['kriged_dB_map'] = np.clip(kriged_db_map, 0, 36)
+            scan['kriged_db_map'] = np.clip(kriged_db_map, 0, 36)
             scan['sens_var_map'] = kriging_variance_map
             scan['kriging_model'] = ok
 
@@ -110,25 +165,25 @@ class StructureFunctionAnalysis:
         mp_norm = BoundaryNorm(np.arange(-0.5, 37.5, 1), self.mp_cmap.N)
 
         if plot_kriged_db_heat_map:
-            scan = self.registration_data[0]
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-            ax1.imshow(scan['slo_img'], cmap='gray')
-            im1 = ax1.imshow(scan['kriged_db_map'], cmap=self.mp_cmap, norm=mp_norm, alpha=0.7)
-            ax1.set_title('Kriged sensitivity (dB)')
-            cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, ticks=range(0, 37, 6), label='Sensitivity (dB)')
-            cbar.minorticks_off()
-            im2 = ax2.imshow(scan['sens_var_map'], cmap='magma_r')
-            ax2.set_title('Kriging variance (dB²)')
-            fig.colorbar(im2, ax=ax2, fraction=0.046, label='Kriging variance (dB²)')
-            for ax in (ax1, ax2):
-                ax.axis('off')
-            plt.show()
+            for scan in self.registration_data:
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+                ax1.imshow(scan['slo_img'], cmap='gray')
+                im1 = ax1.imshow(scan['kriged_db_map'], cmap=self.mp_cmap, norm=mp_norm, alpha=0.7)
+                ax1.set_title('Kriged sensitivity (dB)')
+                cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, ticks=range(0, 37, 6), label='Sensitivity (dB)')
+                cbar.minorticks_off()
+                im2 = ax2.imshow(scan['sens_var_map'], cmap='magma_r')
+                ax2.set_title('Kriging variance (dB²)')
+                fig.colorbar(im2, ax=ax2, fraction=0.046, label='Kriging variance (dB²)')
+                for ax in (ax1, ax2):
+                    ax.axis('off')
+                plt.show()
 
-            image_name = f"{scan['patient_id']}_{scan['exam_id']}_{scan['eye']}_{scan['timepoint']}"
-            save_path = os.path.join(save_dir, f"{image_name}_untransformed_MP_overlay.png")
+                image_name = f"{scan['patient_id']}_{scan['exam_id']}_{scan['eye']}_{scan['timepoint']}"
+                save_path = os.path.join(save_dir, f"{image_name}_untransformed_MP_overlay.png")
 
-            print(f"Saved: {save_path}")
-            plt.save(save_path)
+                print(f"Saved: {save_path}")
+                fig.savefig(save_path, dpi=300 ,format='png')
 
         # --- Ed notes ---
         # im2 shows the Kriging variance, or degree of certainty, in dB². At each stim point the SD is ~13dB² == ~3.6 dB
@@ -137,39 +192,8 @@ class StructureFunctionAnalysis:
         # stim points. Noise and the prediction grid layout causes there to be some uncertainty as the site of the stim,
         # hence why there is still 4 dB of SD rather than 0.
 
-    def
+    # def scotoma_and_layer_loss_correlation(self):
 
-    # linear regression models are too crude for the dataset - use Bayesian LMM
-    # @staticmethod
-    # def linear_regression(sf_data, x_key='mean_rpe_bm_um'):
-    #     x_values = []
-    #     y_values = []
-    #
-    #     for v in sf_data:
-    #         x = v[x_key]
-    #         y = v['sensitivity_db']
-    #
-    #         # skip stimuli outside the scan (i.e. NaN thickness) and not-seen points
-    #         if np.isnan(x) or y < 0:
-    #             continue
-    #
-    #         x_values.append(x)
-    #         y_values.append(y)
-    #
-    #     # run linear regression
-    #     slope, intercept, r, p, std_err = stats.linregress(x_values, y_values)
-    #
-    #     # fitted line from the smallest to the largest x
-    #     x_line = np.array([min(x_values), max(x_values)])
-    #     y_line = slope * x_line + intercept
-    #
-    #     plt.scatter(x_values, y_values, s=15)
-    #     plt.plot(x_line, y_line, color='red')
-    #     plt.xlabel(f'{x_key} (µm)')
-    #     plt.ylabel(f'{'Retinal sensitivity (db)'}')
-    #     plt.title(f'slope {slope:.3f} dB/µm, r={r:.2f}, p={p:.3g}, n={len(x_values)}')
-    #     plt.show()
-    #
-    #     return slope, intercept, r, p, std_err
 
     # def perilesion_sf_analysis(self):
+    #     pass

@@ -48,10 +48,15 @@ def main(test_grid_centres_flag=False):
     sf_data = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
 
     sf_data.direct_structure_function_measurement()
-    sf_data.interpolated_sensitivity_map()
 
-    # sf_data.linear_mixed_model(sf_dict)
-    # sf_data.linear_regression(sf_dict)
+    lmm_both = sf_data.sf_linear_mixed_model_fitting()
+    lmm_ez = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'])
+    lmm_rpe = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'])
+
+    sf_data.interpolated_kriged_sensitivity_map()
+    # sf_data.scotoma_and_layer_loss_correlation()
+
+    # sf_data.perilesion_sf_analysis()
 
 if __name__ == "__main__":
     main(test_grid_centres_flag=False)
