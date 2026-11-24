@@ -59,16 +59,14 @@ def main(run_checks=True):
     # add other stim_ids if you want to highglight on gs slo image.
     # The fn kwarg for 'edgecolors' needs to be 'yellow' or not None
     if run_checks:
-        _offset_test(registration_data)
         _plot_ez_integrity_and_sensitivity_per_timepoint(registration_data, {'stimulus_07'})
 
-    analysis.sf_linear_mixed_model_fitting(plot_name=f"Combined model: time+stim_id adj")
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only: time+stim_id adj")
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE loss-only: time+stim_id adj")
-
-    analysis.sf_linear_mixed_model_fitting(not_seen='floor')
-    analysis.sf_linear_mixed_model_fitting(exclude_border_px=25)
-
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'],
+                                           plot_name=f"EZ loss-only", zero_neg_mp_responses=True)
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'],
+                                           plot_name=f"RPE loss-only", zero_neg_mp_responses=True)
+    analysis.sf_linear_mixed_model_fitting(plot_name=f"EZ and RPE combined model",
+                                           zero_neg_mp_responses=True)
 
     analysis.interpolated_kriged_sensitivity_map()
 

@@ -1,5 +1,3 @@
-from tkinter import font
-
 import numpy as np
 from PIL import Image
 from pykrige.ok import OrdinaryKriging
@@ -9,7 +7,7 @@ import seaborn as sns
 from scipy.spatial import Delaunay
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm
-from mp_oct_enums_helpers import _mp_matplotlib_colourmap
+from mp_oct_enums_helpers import _mp_matplotlib_colourmap, AAVB_DRKGRN, AAVB_LITGRN
 import statsmodels.formula.api as smf
 
 class StructureFunctionAnalysis:
@@ -67,24 +65,20 @@ class StructureFunctionAnalysis:
     # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
     def sf_linear_mixed_model_fitting(self, adjust_for_timepoint=True,
                                       thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'),
-                                      not_seen='exclude',
+                                      zero_neg_mp_responses=None,
                                       plot_name=None,
-                                      exclude_border_px=None
                                       ):
 
         save_dir = os.path.join(self.output_dir, f"LMM_plots_{self.timestamp}")
         os.makedirs(save_dir, exist_ok=True)
 
         df = pd.DataFrame(self.sf_dict)
-        # exclude' drops -1 dB points from analysis and then np.clip sets them to 0 dB
-        if not_seen == 'exclude':
-            df = df[df['sensitivity_db'] >= 0]
-        else:
-            df['sensitivity_db'] = df['sensitivity_db'].clip(lower=0)
 
-        # if True, the small pixel clusters outside the lesion (most likely flecks) are removed from analysis)
-        if exclude_border_px:
-            df = df[df['border_dist_px'].abs() > exclude_border_px]
+        # If True, negative mp responses are set to 0 dB, otherwise False removes them from dataframe
+        if zero_neg_mp_responses:
+            df['sensitivity_db'] = df['sensitivity_db'].clip(lower=0)
+        else:
+            df = df[df['sensitivity_db'] >= 0]
 
         # keep stimuli with a thickness for every layer in the model (drops points outside the OCT scan)
         df = df.dropna(subset=list(thickness_cols))
@@ -105,29 +99,32 @@ class StructureFunctionAnalysis:
             model = smf.mixedlm(formula, df, groups=df['stimulus_id'])
 
         result = model.fit(reml=True)
-        print(f"n={len(df)} observations, {n_eyes} eye(s), {df['stimulus_id'].nunique()} locations, not seen: {not_seen}")
+        print(f"n={len(df)} observations, {n_eyes} eye(s), {df['stimulus_id'].nunique()} locations, neg. mp values adj.: {zero_neg_mp_responses}")
         print(result.summary())
 
-        labels = {'direct_ez_mean_thickness': 'EZ–RPE thickness (µm)', 'direct_rpe_mean_thickness': 'RPE–BM thickness (µm)'}
+        labels = {'direct_ez_mean_thickness': 'EZ–>RPE thickness (µm)', 'direct_rpe_mean_thickness': 'RPE–>BM thickness (µm)'}
 
-        not_seen_df = pd.DataFrame(self.sf_dict).query('sensitivity_db < 0')
+        neg_mp_responses_df = pd.DataFrame(self.sf_dict).query('sensitivity_db < 0')
 
         fig, axes = plt.subplots(1, len(thickness_cols), figsize=(5.5 * len(thickness_cols), 4.5), sharey=True, squeeze=False)
 
         for ax, col in zip(axes[0], thickness_cols):
+
             b = result.fe_params[col]
             # partial residuals: each point with the other layer, timepoint and stim_id effects removed (on the dB scale)
             df['adjusted_db'] = result.resid + b * df[col] + (df['sensitivity_db'].mean() - b * df[col].mean())
 
-            # scatter + fitted line + 95% CI; units= resamples whole stim_id locations, so the band accounts for repeated measures
-            sns.regplot(data=df, x=col, y='adjusted_db', units='stimulus_id', ax=ax,
+            # scatter + fitted line + 95% CI; units = resamples whole stim_id locations, so the band accounts for repeated measures
+            sns.regplot(data=df, x=col, y='adjusted_db', units='stimulus_id', ax=ax, color=AAVB_DRKGRN,
                         scatter_kws={'s': 15, 'alpha': 0.5}, line_kws={'color': 'black'})
+            band = ax.collections[-1]
+            band.set_facecolor(AAVB_DRKGRN)
+            band.set_alpha(0.2)
 
-            # not-seen stimuli (excluded from the fit) along the bottom
-            sns.scatterplot(x=not_seen_df[col], y=-2, marker='X', color='grey', s=25, ax=ax)
-
+            # negative responses (excluded from the fit), these are found along the bottom of the plot
+            plot = sns.scatterplot(x=neg_mp_responses_df[col], y=-2, marker='X', color='grey', s=25, ax=ax)
             p = result.pvalues[col]
-            ax.set(title=f"{plot_name}: {b:+.2f} dB/µm_" + ("p<0.001" if p<0.001 else f"p={p:.3f}"),
+            ax.set(title=f"{plot_name}: {b:+.2f} dB/µm " + ("(p<0.001)" if p<0.001 else f"(p={p:.3f})"),
                    xlabel=labels.get(col, col), ylabel='Sensitivity (dB), adjusted')
 
         fig.tight_layout()

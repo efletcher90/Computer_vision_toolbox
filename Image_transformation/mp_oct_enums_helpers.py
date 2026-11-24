@@ -24,6 +24,7 @@ EZ_LUT = str(PATH_START/Path(r'EZ_RPE_scalebar_LUT.csv'))
 RPE_LUT = str(PATH_START/Path(r'RPE_BM_scalebar_LUT.csv'))
 
 AAVB_FONT = r"C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\Image_transformation\Supporting_data\PPNeueMachina-PlainRegular.otf"
+AAVB_DRKGRN, AAVB_LITGRN = ["#00443E", "#BBFFAF"]
 
 # wanted keys to patient metadata stored in 'projection.xml' dict
 METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
