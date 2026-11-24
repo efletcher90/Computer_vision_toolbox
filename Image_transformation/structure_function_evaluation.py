@@ -1,3 +1,5 @@
+from tkinter import font
+
 import numpy as np
 from PIL import Image
 from pykrige.ok import OrdinaryKriging
@@ -183,8 +185,10 @@ class StructureFunctionAnalysis:
                 im2 = ax2.imshow(scan['sens_var_map'], cmap='magma_r')
                 ax2.set_title('Kriging variance (dB²)')
                 fig.colorbar(im2, ax=ax2, fraction=0.046, label='Kriging variance (dB²)')
-                for ax in (ax1, ax2):
-                    ax.axis('off')
+                ax1.grid(alpha=0.3, color='white')
+                ax1.xlabel('pixels')
+                ax1.ylabel('pixels')
+                plt.tight_layout()
                 plt.show()
 
                 image_name = f"{scan['patient_id']}_{scan['exam_id']}_{scan['eye']}_{scan['timepoint']}"

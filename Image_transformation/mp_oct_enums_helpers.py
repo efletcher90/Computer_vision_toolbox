@@ -5,6 +5,7 @@ import PIL.Image as Image
 from PIL import ImageDraw
 import math
 from matplotlib.colors import BoundaryNorm
+from pathlib import Path
 import cv2
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
@@ -12,13 +13,16 @@ from matplotlib.font_manager import FontProperties
 
 # --- Enums -------- #
 # dir for mp and oct data
-# OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\Outputs'
+PATH_START = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data'
+# OUTPUT_DIR = str(PATH_START/Path(r'Outputs'))
 OUTPUT_DIR = r"C:\Users\EdFletcher\Downloads\Outputs"
-MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
-OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
-AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
-EZ_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\EZ_RPE_scalebar_LUT.csv'
-RPE_LUT = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\RPE_BM_scalebar_LUT.csv'
+
+MP_DIR = str(PATH_START/Path(r'MP_for_overlay'))
+OCT_DIR = str(PATH_START/Path(r'OCT_masks_for_overlay'))
+EZ_LUT = str(PATH_START/Path(r'EZ_RPE_scalebar_LUT.csv'))
+RPE_LUT = str(PATH_START/Path(r'RPE_BM_scalebar_LUT.csv'))
+
+AAVB_FONT = r"C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\Image_transformation\Supporting_data\PPNeueMachina-PlainRegular.otf"
 
 # wanted keys to patient metadata stored in 'projection.xml' dict
 METADATA_KEYS = ['ExamID', 'ExamBaselineID', 'Age', 'Eye', 'DateTime', 'fieldDegreesX', 'fieldDegreesY', 'examPRLX_pix',
@@ -156,18 +160,16 @@ def _test_grid_centres(patient, out_dir="grid_centre_tests"):
 
 # debugging output for alignment of the ez and rpe structure hulls on the gs slo still at visit timepoints
 def _ez_and_rpe_maps_on_slo_img(registration_data):
-    font = FontProperties(fname=AAVB_FONT, size=14)
+    font = FontProperties(fname=AAVB_FONT, size=10)
     for scan in registration_data:
+        plt.figure(figsize=(6, 6))
         plt.imshow(scan['slo_img'], cmap='gray')
-        plt.contour(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99) <= 30, levels=[0.5], colors='red')
-        plt.contourf(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99), colors='red', alpha=0.5)
-        plt.contour(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99) <= 30, levels=[0.5], colors='blue')
-        plt.contourf(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99), colors='blue', alpha=0.5)
-
-        plt.text(1.02, 0.55, 'EZ–RPE ≤ 30 µm\n(EZ loss / disruption)', color='red', transform=plt.gca().transAxes, va='bottom')
-        plt.text(1.02, 0.45, 'RPE–BM ≤ 30 µm\n(RPE loss / thinning)', color='blue', transform=plt.gca().transAxes, va='top')
-        plt.grid(alpha=0.2, color='white', which='both', linestyle='-')
-        plt.axis('off')
+        plt.contour(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99), levels=[0.5, 1.5], colors='red', alpha=0.3)
+        plt.contour(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99), levels=[0.5, 1.5], colors='blue', alpha=0.3)
+        plt.grid(alpha=0.3, color='white')
+        plt.xlabel('pixels')
+        plt.ylabel('pixels')
+        plt.tight_layout()
         plt.title(f"{scan['patient_id']}: EZ_and_RPE_boundaries_{scan['exam_id']}_{scan['timepoint']}", font=font)
         plt.show()
 
@@ -175,27 +177,28 @@ def _ez_and_rpe_maps_on_slo_img(registration_data):
 # ontop of stim_id locations (yellow circles highlight problematic stims.
 # this is to pinpoint any stim sites that have high sensitivity and yet low ez structure
 def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edgecolours=None):
-    font = FontProperties(fname=AAVB_FONT, size=14)
+    font = FontProperties(fname=AAVB_FONT, size=10)
     for scan in reg_data:
+
         ez = scan['ez_px_thicknesses'][1]
         stimuli = scan['stimuli']
         xs = [stim['transf_px_x'] for stim in stimuli]
         ys = [stim['transf_px_y'] for stim in stimuli]
         sens_range = [max(stim['intensity'], 0) for stim in stimuli]
 
+        plt.figure(figsize=(6, 6))
         plt.imshow(scan['slo_img'], cmap='gray')
         ez_filled = np.nan_to_num(ez, nan=99)
-        # EZ loss border (0 um)
 
         mp_cmap = _mp_matplotlib_colourmap()
         mp_norm = BoundaryNorm(np.arange(-0.5, 37.5, 1), mp_cmap.N)
 
         # EZ loss (0 um)
-        plt.contour(ez_filled < 0.5, levels=[0.5], colors='red')
+        plt.contour(ez_filled < 0.5, levels=[0.5], colors='red', alpha=0.5, linewidths=1)
         # disrupted EZ border (0-20 um)
-        plt.contour(ez_filled <= 20, levels=[0.5], colors='orange')
-        plt.grid(alpha=0.2, color='white', which='both', linestyle='-')
-        sc = plt.scatter(xs, ys, c=sens_range, cmap=mp_cmap, norm=mp_norm, s=30, edgecolors='white')
+        plt.contour(ez_filled <= 20, levels=[0.5], colors='orange', alpha=0.5, linewidths=1)
+        plt.grid(alpha=0.3, color='white', linestyle='-')
+        sc = plt.scatter(xs, ys, c=sens_range, cmap=mp_cmap, norm=mp_norm, s=30, alpha=0.5, linewidths=1, edgecolors='white')
 
         # circle the suspect stimuli
         for stim in stimuli:
@@ -204,6 +207,9 @@ def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edge
 
         cbar = plt.colorbar(sc, ticks=range(0, 37, 6), label='Sensitivity (dB)')
         cbar.minorticks_off()
-        plt.axis('off')
+
+        plt.xlabel('pixels')
+        plt.ylabel('pixels')
+        plt.tight_layout()
         plt.title(f"{scan['patient_id']}: EZ_integrity_{scan['exam_id']}_{scan['timepoint']}", font=font)
         plt.show()
