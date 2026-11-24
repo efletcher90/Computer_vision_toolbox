@@ -58,6 +58,7 @@ class StructureFunctionAnalysis:
                                 'direct_ez_mean_thickness': ez_pixels.mean() if ez_pixels.size else np.nan,
                                 'direct_rpe_mean_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan}
                                )
+        return self.sf_dict
 
     # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
     def sf_linear_mixed_model_fitting(self, adjust_for_timepoint=True,
@@ -98,8 +99,7 @@ class StructureFunctionAnalysis:
         print(f"n={len(df)} observations, {n_eyes} eye(s), {df['stimulus_id'].nunique()} locations, not seen: {not_seen}")
         print(result.summary())
 
-        labels = {'direct_ez_mean_thickness': 'EZ–RPE thickness (µm)',
-                  'direct_rpe_mean_thickness': 'RPE–BM thickness (µm)'}
+        labels = {'direct_ez_mean_thickness': 'EZ–RPE thickness (µm)', 'direct_rpe_mean_thickness': 'RPE–BM thickness (µm)'}
 
         not_seen_df = pd.DataFrame(self.sf_dict).query('sensitivity_db < 0')
 
@@ -125,8 +125,6 @@ class StructureFunctionAnalysis:
         fig.savefig(os.path.join(save_dir, f"{'_'.join(thickness_cols)}_sf_lmm_plot_{self.timestamp}.png"), dpi=300)
         plt.close(fig)
 
-        return result
-
     # interpolate a function map around the stimulation sites and align with rpe/ez structural maps. Can be used to
     # investigate scotoma/EZ loss areas and progression
     # Spatial interpolation investigated using geospatial kriging methods.
@@ -134,7 +132,7 @@ class StructureFunctionAnalysis:
         save_dir = os.path.join(self.output_dir, f"Kriged interpolated sensitivity maps_{self.timestamp}")
         os.makedirs(save_dir, exist_ok=True)
 
-        # Kriging for every SLO pixel from the transformed stimulus positions. This makes one map per scan
+        # Kriging for every SLO pixel from the transformed stimulus positions, gathered after registration.
         # SLO image shape, thrown to variable instead of 1536 x 1536 hardcoded
         h, w = slo_img_shape
         yy, xx = np.mgrid[0:h, 0:w]
@@ -190,7 +188,7 @@ class StructureFunctionAnalysis:
                 plt.show()
 
                 image_name = f"{scan['patient_id']}_{scan['exam_id']}_{scan['eye']}_{scan['timepoint']}"
-                save_path = os.path.join(save_dir, f"{image_name}_untransformed_MP_overlay.png")
+                save_path = os.path.join(save_dir, f"{image_name}_transformed_MP_overlay.png")
 
                 print(f"Saved: {save_path}")
                 fig.savefig(save_path, dpi=300 ,format='png')

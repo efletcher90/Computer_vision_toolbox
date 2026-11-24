@@ -4,11 +4,12 @@ from Image_transformation.fundus_registration import FundusRegistrator
 from Image_transformation.structure_function_evaluation import StructureFunctionAnalysis
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
                                                        _test_grid_centres, _number_multiple_recordings_at_timepoint,
-                                                       AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG)
+                                                       AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG, _ez_and_rpe_maps_on_slo_img,
+                                                       _plot_ez_integrity_and_sensitivity_per_timepoint)
 import os
 import time
 
-def main(test_grid_centres_flag=False):
+def main(run_checks=True):
     timestamp=time.strftime("%Y-%m-%d_%H%M")
     xml_parser = CreateMicroperimetryDataDicts(MP_DIR, METADATA_KEYS)
 
@@ -20,7 +21,7 @@ def main(test_grid_centres_flag=False):
     data_with_coords = calculator.calculate_pixel_coordinates()
 
     # This call is used to check for the centre grid points on
-    if test_grid_centres_flag:
+    if run_checks:
         for patient in patient_data_dicts:
             _test_grid_centres(patient)
 
@@ -40,23 +41,33 @@ def main(test_grid_centres_flag=False):
 
     mapping = OctThicknessMapping(registration_data, EZ_LUT, RPE_LUT)
     rgb_values_ez, rgb_values_rpe = mapping.get_pixel_thickness_values()
+
+    # check: EZ-loss outline on each SLO (thickness maps must line up with the SLO)
+    if run_checks:
+        _ez_and_rpe_maps_on_slo_img(registration_data)
+
     mapping.overlay_rgb_maps(rgb_values_ez, rgb_values_rpe)
 
     overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
 
-    sf_data = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
+    analysis = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
 
-    sf_data.direct_structure_function_measurement()
+    analysis.direct_structure_function_measurement()
 
-    lmm_both = sf_data.sf_linear_mixed_model_fitting(plot_name=f"Combined model: each layer adjusted for the other, timepoint and stim_id")
-    lmm_ez = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only model: adjusted for timepoint and stim_id")
-    lmm_rpe = sf_data.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE-loss-only model: adjusted for timepoint and stim_id")
+    # add other stim_ids if you want to hgihglihgt on gs slo image.
+    # The fn kwarg for 'edgecolors' needs to be 'yellow' or not None
+    if run_checks:
+        _plot_ez_integrity_and_sensitivity_per_timepoint(registration_data, {'stimulus_07'})
 
-    sf_data.interpolated_kriged_sensitivity_map()
+    analysis.sf_linear_mixed_model_fitting(plot_name=f"Combined model: each layer adjusted for the other, timepoint and stim_id")
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only model: adjusted for timepoint and stim_id")
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE-loss-only model: adjusted for timepoint and stim_id")
+
+    analysis.interpolated_kriged_sensitivity_map()
+
     # sf_data.scotoma_and_layer_loss_correlation()
-
     # sf_data.perilesion_sf_analysis()
 
 if __name__ == "__main__":
-    main(test_grid_centres_flag=False)
+    main()

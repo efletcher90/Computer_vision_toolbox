@@ -4,12 +4,16 @@ import csv
 import PIL.Image as Image
 from PIL import ImageDraw
 import math
+from matplotlib.colors import BoundaryNorm
 import cv2
 from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 
 # --- Enums -------- #
 # dir for mp and oct data
-OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\Outputs'
+# OUTPUT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\Outputs'
+OUTPUT_DIR = r"C:\Users\EdFletcher\Downloads\Outputs"
 MP_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\MP_for_overlay'
 OCT_DIR = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data\OCT_masks_for_overlay'
 AAVB_FONT = r'C:\Users\EdFletcher\PycharmProjects\Computer_vision_toolbox\PPNeueMachina-PlainRegular.otf'
@@ -36,47 +40,6 @@ SLO_PX_PER_DEG = round(float(1536 / 30), 1)
 
 # ------------------ #
 # helper functions. These have been separated for Class tidiness
-
-#to QC check the overlay of mp stim points and the png still image provided. Compare to the pdfs in the respective folders
-def _test_grid_centres(patient, out_dir="grid_centre_tests"):
-    os.makedirs(out_dir, exist_ok=True)
-    grid = lambda k: float(patient.get(k, 0))
-    candidates = {
-        "image_centre":   (0, 0),
-        "bl_prl":         (grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
-        "bl_prl_minus_shift":(grid("baselinePRLX_pix") - grid("baselineShiftX_pix"),
-                           grid("baselinePRLY_pix") - grid("baselineShiftY_pix")),
-        "exam_prl":       (grid("examPRLX_pix"), grid("examPRLY_pix")),
-        "bl_prl_xflip":   (-grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
-        "exam_prl_xflip": (-grid("examPRLX_pix"), grid("examPRLY_pix")),
-        "bl_prl_swap": (-grid("baselinePRLY_pix"), grid("baselinePRLX_pix")),
-        "bl_prl_swap_neg": (grid("baselinePRLY_pix"), -grid("baselinePRLX_pix")),
-
-    }
-    arr = np.array(Image.open(patient["scan_path"]), dtype=np.uint16)
-    base = Image.fromarray((arr >> 8).astype(np.uint8)).convert("RGB")
-    width, height = base.size
-    scale = width / grid("fieldDegreesX")
-
-    for name, (dx, dy) in candidates.items():
-        for ysign, ylabel in ((-1, "yup"), (1, "ydown")):
-            cx, cy = width / 2 + dx, height / 2 + ysign * dy
-            cx, cy = cy, width - cx                      # rotate centre to match ROTATE_90
-            img = base.transpose(Image.Transpose.ROTATE_90)
-            draw = ImageDraw.Draw(img)
-            for k, v in patient.items():
-                if not k.startswith("stimulus_") or k == "stimulus_00":
-                    continue
-                fi, ray, ang = v
-                db = -1 if fi > 0 else -fi
-                a = math.radians(ang)
-                x = cx + ray * math.cos(a) * scale
-                y = cy - ray * math.sin(a) * scale
-                col = DB_COLOUR_VALUES["<0" if db < 0 else str(db)]
-                draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=col)
-
-            img.save(os.path.join(out_dir, f"{patient.get('ExamID')}_{name}_{ylabel}.png"))
-
 def _to_uint8(img):
     # converts any 16-bit images to 8-bit. 8-bit images are left out
     return (img >> 8).astype(np.uint8) if img.dtype == np.uint16 else img
@@ -149,3 +112,98 @@ def _mp_matplotlib_colourmap():
     mp_cmap = ListedColormap(colours, name='mp_cmap')
 
     return mp_cmap
+
+# ------- debugging functions ------------------
+#to QC check the overlay of mp stim points and the png still image provided. Compare to the pdfs in the respective folders
+def _test_grid_centres(patient, out_dir="grid_centre_tests"):
+    os.makedirs(out_dir, exist_ok=True)
+    grid = lambda k: float(patient.get(k, 0))
+    candidates = {
+        "image_centre":   (0, 0),
+        "bl_prl":         (grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
+        "bl_prl_minus_shift":(grid("baselinePRLX_pix") - grid("baselineShiftX_pix"),
+                           grid("baselinePRLY_pix") - grid("baselineShiftY_pix")),
+        "exam_prl":       (grid("examPRLX_pix"), grid("examPRLY_pix")),
+        "bl_prl_xflip":   (-grid("baselinePRLX_pix"), grid("baselinePRLY_pix")),
+        "exam_prl_xflip": (-grid("examPRLX_pix"), grid("examPRLY_pix")),
+        "bl_prl_swap": (-grid("baselinePRLY_pix"), grid("baselinePRLX_pix")),
+        "bl_prl_swap_neg": (grid("baselinePRLY_pix"), -grid("baselinePRLX_pix")),
+
+    }
+    arr = np.array(Image.open(patient["scan_path"]), dtype=np.uint16)
+    base = Image.fromarray((arr >> 8).astype(np.uint8)).convert("RGB")
+    width, height = base.size
+    scale = width / grid("fieldDegreesX")
+
+    for name, (dx, dy) in candidates.items():
+        for ysign, ylabel in ((-1, "yup"), (1, "ydown")):
+            cx, cy = width / 2 + dx, height / 2 + ysign * dy
+            cx, cy = cy, width - cx                      # rotate centre to match ROTATE_90
+            img = base.transpose(Image.Transpose.ROTATE_90)
+            draw = ImageDraw.Draw(img)
+            for k, v in patient.items():
+                if not k.startswith("stimulus_") or k == "stimulus_00":
+                    continue
+                fi, ray, ang = v
+                db = -1 if fi > 0 else -fi
+                a = math.radians(ang)
+                x = cx + ray * math.cos(a) * scale
+                y = cy - ray * math.sin(a) * scale
+                col = DB_COLOUR_VALUES["<0" if db < 0 else str(db)]
+                draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=col)
+
+            img.save(os.path.join(out_dir, f"{patient.get('ExamID')}_{name}_{ylabel}.png"))
+
+# debugging output for alignment of the ez and rpe structure hulls on the gs slo still at visit timepoints
+def _ez_and_rpe_maps_on_slo_img(registration_data):
+    font = FontProperties(fname=AAVB_FONT, size=14)
+    for scan in registration_data:
+        plt.imshow(scan['slo_img'], cmap='gray')
+        plt.contour(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99) <= 30, levels=[0.5], colors='red')
+        plt.contourf(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99), colors='red', alpha=0.5)
+        plt.contour(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99) <= 30, levels=[0.5], colors='blue')
+        plt.contourf(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99), colors='blue', alpha=0.5)
+
+        plt.text(1.02, 0.55, 'EZ–RPE ≤ 30 µm\n(EZ loss / disruption)', color='red', transform=plt.gca().transAxes, va='bottom')
+        plt.text(1.02, 0.45, 'RPE–BM ≤ 30 µm\n(RPE loss / thinning)', color='blue', transform=plt.gca().transAxes, va='top')
+        plt.grid(alpha=0.2, color='white', which='both', linestyle='-')
+        plt.axis('off')
+        plt.title(f"{scan['patient_id']}: EZ_and_RPE_boundaries_{scan['exam_id']}_{scan['timepoint']}", font=font)
+        plt.show()
+
+# align timepoints with ez disruption and loss (i.e. 0-20um and 0um, as determined by Cleveland)
+# ontop of stim_id locations (yellow circles highlight problematic stims.
+# this is to pinpoint any stim sites that have high sensitivity and yet low ez structure
+def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edgecolours=None):
+    font = FontProperties(fname=AAVB_FONT, size=14)
+    for scan in reg_data:
+        ez = scan['ez_px_thicknesses'][1]
+        stimuli = scan['stimuli']
+        xs = [stim['transf_px_x'] for stim in stimuli]
+        ys = [stim['transf_px_y'] for stim in stimuli]
+        sens_range = [max(stim['intensity'], 0) for stim in stimuli]
+
+        plt.imshow(scan['slo_img'], cmap='gray')
+        ez_filled = np.nan_to_num(ez, nan=99)
+        # EZ loss border (0 um)
+
+        mp_cmap = _mp_matplotlib_colourmap()
+        mp_norm = BoundaryNorm(np.arange(-0.5, 37.5, 1), mp_cmap.N)
+
+        # EZ loss (0 um)
+        plt.contour(ez_filled < 0.5, levels=[0.5], colors='red')
+        # disrupted EZ border (0-20 um)
+        plt.contour(ez_filled <= 20, levels=[0.5], colors='orange')
+        plt.grid(alpha=0.2, color='white', which='both', linestyle='-')
+        sc = plt.scatter(xs, ys, c=sens_range, cmap=mp_cmap, norm=mp_norm, s=30, edgecolors='white')
+
+        # circle the suspect stimuli
+        for stim in stimuli:
+            if stim['id'] in suspect_ids:
+                plt.scatter(stim['transf_px_x'], stim['transf_px_y'], s=250, facecolors='none', edgecolors=edgecolours, linewidths=2)
+
+        cbar = plt.colorbar(sc, ticks=range(0, 37, 6), label='Sensitivity (dB)')
+        cbar.minorticks_off()
+        plt.axis('off')
+        plt.title(f"{scan['patient_id']}: EZ_integrity_{scan['exam_id']}_{scan['timepoint']}", font=font)
+        plt.show()

@@ -268,7 +268,7 @@ class FundusOverlays:
                     intensity = stim['intensity']
                     colour_key = "<0" if intensity < 0 else str(intensity)
 
-                    draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=1)
+                    draw.ellipse([px_x - 14, px_y - 14, px_x + 14, px_y + 14], fill=self.colour_map.get(colour_key), outline="#FFFFFF", width=3)
                     draw.text((px_x, px_y), str(intensity), fill=_stim_text_hex(intensity), anchor="mm", font_size=22)
 
                 # image identifier and save
