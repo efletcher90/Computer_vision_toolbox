@@ -7,6 +7,7 @@ import math
 from matplotlib.colors import BoundaryNorm
 from pathlib import Path
 import cv2
+from scipy.ndimage import binary_opening, distance_transform_edt
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
@@ -117,8 +118,12 @@ def _mp_matplotlib_colourmap():
 
     return mp_cmap
 
+def _clean_mask(thickness, max_um):
+    # pixels at or below max_um are removed. i.e. NaN (outside the scan). These can be flecks, and atm, aren't being looked at
+    return binary_opening(np.nan_to_num(thickness, nan=999) <= max_um, iterations=3)
+
 # ------- debugging functions ------------------
-#to QC check the overlay of mp stim points and the png still image provided. Compare to the pdfs in the respective folders
+#to QC check the overlay of mp stim points and the png still image provided. Compare to the PDFs in the respective folders
 def _test_grid_centres(patient, out_dir="grid_centre_tests"):
     os.makedirs(out_dir, exist_ok=True)
     grid = lambda k: float(patient.get(k, 0))
@@ -166,10 +171,11 @@ def _ez_and_rpe_maps_on_slo_img(registration_data):
         plt.imshow(scan['slo_img'], cmap='gray')
         plt.contour(np.nan_to_num(scan['ez_px_thicknesses'][1], nan=99), levels=[0.5, 1.5], colors='red', alpha=0.3)
         plt.contour(np.nan_to_num(scan['rpe_px_thicknesses'][1], nan=99), levels=[0.5, 1.5], colors='blue', alpha=0.3)
+        plt.text(0.03, 0.07, 'EZ loss (EZ–RPE @ 0 µm)', color='red', transform=plt.gca().transAxes)
+        plt.text(0.03, 0.03, 'RPE loss (RPE–BM @ 0 µm)', color='blue', transform=plt.gca().transAxes)
         plt.grid(alpha=0.3, color='white')
         plt.xlabel('pixels')
         plt.ylabel('pixels')
-        plt.tight_layout()
         plt.title(f"{scan['patient_id']}: EZ_and_RPE_boundaries_{scan['exam_id']}_{scan['timepoint']}", font=font)
         plt.show()
 
@@ -179,7 +185,6 @@ def _ez_and_rpe_maps_on_slo_img(registration_data):
 def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edgecolours=None):
     font = FontProperties(fname=AAVB_FONT, size=10)
     for scan in reg_data:
-
         ez = scan['ez_px_thicknesses'][1]
         stimuli = scan['stimuli']
         xs = [stim['transf_px_x'] for stim in stimuli]
@@ -188,28 +193,50 @@ def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edge
 
         plt.figure(figsize=(6, 6))
         plt.imshow(scan['slo_img'], cmap='gray')
-        ez_filled = np.nan_to_num(ez, nan=99)
 
         mp_cmap = _mp_matplotlib_colourmap()
         mp_norm = BoundaryNorm(np.arange(-0.5, 37.5, 1), mp_cmap.N)
 
         # EZ loss (0 um)
-        plt.contour(ez_filled < 0.5, levels=[0.5], colors='red', alpha=0.5, linewidths=1)
+        plt.contour(_clean_mask(ez, 0.5), levels=[0.5], colors='red', linewidths=1)
         # disrupted EZ border (0-20 um)
-        plt.contour(ez_filled <= 20, levels=[0.5], colors='orange', alpha=0.5, linewidths=1)
+        plt.contour(_clean_mask(ez, 20), levels=[0.5], colors='orange', linewidths=1)
         plt.grid(alpha=0.3, color='white', linestyle='-')
-        sc = plt.scatter(xs, ys, c=sens_range, cmap=mp_cmap, norm=mp_norm, s=30, alpha=0.5, linewidths=1, edgecolors='white')
+        sc = plt.scatter(xs, ys, c=sens_range, cmap=mp_cmap, norm=mp_norm, s=30, linewidths=1, edgecolors='white')
 
         # circle the suspect stimuli
         for stim in stimuli:
             if stim['id'] in suspect_ids:
                 plt.scatter(stim['transf_px_x'], stim['transf_px_y'], s=250, facecolors='none', edgecolors=edgecolours, linewidths=2)
 
-        cbar = plt.colorbar(sc, ticks=range(0, 37, 6), label='Sensitivity (dB)')
+        cbar = plt.colorbar(sc, ticks=range(0, 37, 6), label='Sensitivity (dB)', fraction=0.046, pad=0.04)
+        plt.text(0.03, 0.07, 'EZ loss (0 µm)', color='red', transform=plt.gca().transAxes)
+        plt.text(0.03, 0.03, 'EZ disrupted (≤ 20 µm)', color='orange', transform=plt.gca().transAxes)
         cbar.minorticks_off()
-
         plt.xlabel('pixels')
         plt.ylabel('pixels')
         plt.tight_layout()
         plt.title(f"{scan['patient_id']}: EZ_integrity_{scan['exam_id']}_{scan['timepoint']}", font=font)
         plt.show()
+
+# Adds each stimulus' distance from the EZ-loss border(negative inside the lesion)
+def _ez_loss_border_distance_to_stim(registration_data, ez_loss_um=0.5):
+    for scan in registration_data:
+        lesion = _clean_mask(scan['ez_px_thicknesses'][1], ez_loss_um)
+        signed = np.where(lesion, -distance_transform_edt(lesion), distance_transform_edt(~lesion))
+        for s in scan['stimuli']:
+            s['border_dist_px'] = float(signed[int(round(s['transf_px_y'])), int(round(s['transf_px_x']))])
+
+def _offset_test(registration_data, max_shift=100, step=5):
+    # correlation of EZ thickness with sensitivity for the stimulus grid shifted by (dx, dy) px; best should be ~(0, 0)
+    for scan in registration_data:
+        ez = scan['ez_px_thicknesses'][1]
+        scores = {}
+        for dx in range(-max_shift, max_shift + 1, step):
+            for dy in range(-max_shift, max_shift + 1, step):
+                pairs = np.array([(s['intensity'], ez[int(round(s['transf_px_y'] + dy)), int(round(s['transf_px_x'] + dx))])
+                                  for s in scan['stimuli']])
+                pairs = pairs[~np.isnan(pairs[:, 1])]
+                scores[(dx, dy)] = np.corrcoef(pairs[:, 0], pairs[:, 1])[0, 1]
+        best = max(scores, key=scores.get)
+        print(f"{scan['timepoint']}: best shift {best} r={scores[best]:.3f}, no shift r={scores[(0, 0)]:.3f}")

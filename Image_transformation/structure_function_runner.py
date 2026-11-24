@@ -5,7 +5,7 @@ from Image_transformation.structure_function_evaluation import StructureFunction
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
                                                        _test_grid_centres, _number_multiple_recordings_at_timepoint,
                                                        AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG, _ez_and_rpe_maps_on_slo_img,
-                                                       _plot_ez_integrity_and_sensitivity_per_timepoint)
+                                                       _plot_ez_integrity_and_sensitivity_per_timepoint, _offset_test, _ez_loss_border_distance_to_stim)
 import os
 import time
 
@@ -51,18 +51,24 @@ def main(run_checks=True):
     overlay.overlay_thickness_maps_to_oct(registration_data)
     overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
 
-    analysis = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
+    _ez_loss_border_distance_to_stim(registration_data)
 
+    analysis = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
     analysis.direct_structure_function_measurement()
 
-    # add other stim_ids if you want to hgihglihgt on gs slo image.
+    # add other stim_ids if you want to highglight on gs slo image.
     # The fn kwarg for 'edgecolors' needs to be 'yellow' or not None
     if run_checks:
+        _offset_test(registration_data)
         _plot_ez_integrity_and_sensitivity_per_timepoint(registration_data, {'stimulus_07'})
 
-    analysis.sf_linear_mixed_model_fitting(plot_name=f"Combined model: each layer adjusted for the other, timepoint and stim_id")
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only model: adjusted for timepoint and stim_id")
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE-loss-only model: adjusted for timepoint and stim_id")
+    analysis.sf_linear_mixed_model_fitting(plot_name=f"Combined model: time+stim_id adj")
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'], plot_name=f"EZ loss-only: time+stim_id adj")
+    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'], plot_name=f"RPE loss-only: time+stim_id adj")
+
+    analysis.sf_linear_mixed_model_fitting(not_seen='floor')
+    analysis.sf_linear_mixed_model_fitting(exclude_border_px=25)
+
 
     analysis.interpolated_kriged_sensitivity_map()
 

@@ -58,26 +58,33 @@ class StructureFunctionAnalysis:
                                 'transf_px_x': round(float(x), 1),
                                 'transf_px_y': round(float(y), 1),
                                 'direct_ez_mean_thickness': ez_pixels.mean() if ez_pixels.size else np.nan,
-                                'direct_rpe_mean_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan}
-                               )
+                                'direct_rpe_mean_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan,
+                                'border_dist_px': stim['border_dist_px']}
+                                )
+
         return self.sf_dict
 
     # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
     def sf_linear_mixed_model_fitting(self, adjust_for_timepoint=True,
                                       thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'),
                                       not_seen='exclude',
-                                      plot_name=None
+                                      plot_name=None,
+                                      exclude_border_px=None
                                       ):
 
         save_dir = os.path.join(self.output_dir, f"LMM_plots_{self.timestamp}")
         os.makedirs(save_dir, exist_ok=True)
 
         df = pd.DataFrame(self.sf_dict)
-        # not_seen: 'exclude' drops -1 dB points. clip sets them to 0 dB
+        # exclude' drops -1 dB points from analysis and then np.clip sets them to 0 dB
         if not_seen == 'exclude':
             df = df[df['sensitivity_db'] >= 0]
         else:
             df['sensitivity_db'] = df['sensitivity_db'].clip(lower=0)
+
+        # if True, the small pixel clusters outside the lesion (most likely flecks) are removed from analysis)
+        if exclude_border_px:
+            df = df[df['border_dist_px'].abs() > exclude_border_px]
 
         # keep stimuli with a thickness for every layer in the model (drops points outside the OCT scan)
         df = df.dropna(subset=list(thickness_cols))
@@ -120,7 +127,7 @@ class StructureFunctionAnalysis:
             sns.scatterplot(x=not_seen_df[col], y=-2, marker='X', color='grey', s=25, ax=ax)
 
             p = result.pvalues[col]
-            ax.set(title=f"{plot_name} - ({b:+.2f} dB/µm, " + ("p<0.001" if p < 0.001 else f"p={p:.3f})"),
+            ax.set(title=f"{plot_name}: {b:+.2f} dB/µm_" + ("p<0.001" if p<0.001 else f"p={p:.3f}"),
                    xlabel=labels.get(col, col), ylabel='Sensitivity (dB), adjusted')
 
         fig.tight_layout()
@@ -176,7 +183,7 @@ class StructureFunctionAnalysis:
 
         if plot_kriged_db_heat_map:
             for scan in self.registration_data:
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), layout='constrained')
                 ax1.imshow(scan['slo_img'], cmap='gray')
                 im1 = ax1.imshow(scan['kriged_db_map'], cmap=self.mp_cmap, norm=mp_norm, alpha=0.7)
                 ax1.set_title('Kriged sensitivity (dB)')
@@ -186,16 +193,16 @@ class StructureFunctionAnalysis:
                 ax2.set_title('Kriging variance (dB²)')
                 fig.colorbar(im2, ax=ax2, fraction=0.046, label='Kriging variance (dB²)')
                 ax1.grid(alpha=0.3, color='white')
-                ax1.xlabel('pixels')
-                ax1.ylabel('pixels')
-                plt.tight_layout()
+                ax1.set_xlabel('pixels')
+                ax1.set_ylabel('pixels')
+                ax2.set_ylabel('pixels')
                 plt.show()
 
                 image_name = f"{scan['patient_id']}_{scan['exam_id']}_{scan['eye']}_{scan['timepoint']}"
                 save_path = os.path.join(save_dir, f"{image_name}_transformed_MP_overlay.png")
 
                 print(f"Saved: {save_path}")
-                fig.savefig(save_path, dpi=300 ,format='png')
+                fig.savefig(save_path, dpi=300 ,format='png', pad_inches=0.1)
 
         # --- Ed notes ---
         # im2 shows the Kriging variance, or degree of certainty, in dB². At each stim point the SD is ~13dB² == ~3.6 dB
