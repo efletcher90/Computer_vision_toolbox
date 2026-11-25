@@ -57,8 +57,9 @@ class FundusRegistrator:
         oct_mp_pairs = []
 
         for patient in self.p_data_coords_dicts:
-            # only use the second baseline recording for each eye in the folder --- will need to confirm that this is fine later
-            if patient['timepoint'].lower() == 'baseline' and patient['repeat'] == 1:
+            # as far as I can see, the MAIA PDFs state that the first Baseline is used as the BL. I'm not sure what the
+            # second one is used for
+            if patient['timepoint'].lower() == 'baseline' and patient['repeat'] == 0:
                 continue
 
             eye = _normalise_eye(patient['Eye'])

@@ -15,12 +15,12 @@ from matplotlib.font_manager import FontProperties
 
 # --- Enums -------- #
 # dir for mp and oct data
-PATH_START = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA\Example Cleveland MP OCT data'
+PATH_START = r'C:\Users\EdFletcher\OneDrive - AAVantgarde\CARINA'
 # OUTPUT_DIR = str(PATH_START/Path(r'Outputs'))
 OUTPUT_DIR = r"C:\Users\EdFletcher\Downloads\Outputs"
 
-MP_DIR = str(PATH_START/Path(r'MP_for_overlay'))
-OCT_DIR = str(PATH_START/Path(r'OCT_masks_for_overlay'))
+MP_DIR = str(PATH_START/Path(r'Microperimetry_CORC_data'))
+OCT_DIR = str(PATH_START/Path(r'OCT_Cleveland_masks'))
 EZ_LUT = str(PATH_START/Path(r'EZ_RPE_scalebar_LUT.csv'))
 RPE_LUT = str(PATH_START/Path(r'RPE_BM_scalebar_LUT.csv'))
 
@@ -184,8 +184,11 @@ def _ez_and_rpe_maps_on_slo_img(registration_data):
 # align timepoints with ez disruption and loss (i.e. 0-20um and 0um, as determined by Cleveland)
 # ontop of stim_id locations (yellow circles highlight problematic stims.
 # this is to pinpoint any stim sites that have high sensitivity and yet low ez structure
-def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, highlighted_stim_ids, edge_colours=None):
+def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, edge_colours='yellow'):
     font = FontProperties(fname=AAVB_FONT, size=10)
+
+    # dict of loci ids that you want to be circled in yellow
+    highlighted_stim_ids = {'stimulus_07'}
     for scan in reg_data:
         ez = scan['ez_px_thicknesses'][1]
         stimuli = scan['stimuli']

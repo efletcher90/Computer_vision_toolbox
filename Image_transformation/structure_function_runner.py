@@ -59,10 +59,8 @@ def main(run_debug_checks=True):
     sf_analysis = StructureFunctionAnalysis(registered_pairs, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
     sf_analysis.direct_structure_function_measurement()
 
-    # add other stim_ids if you want to highlight on gs slo image. The fn kwarg for 'edge_colours' -> 'yellow' or None
-    #
     if run_debug_checks:
-        _plot_ez_integrity_and_sensitivity_per_timepoint(registered_pairs, {'stimulus_07'})
+        _plot_ez_integrity_and_sensitivity_per_timepoint(registered_pairs)
 
     sf_analysis.sf_linear_mixed_model_fitting(thickness_cols=['ez_thickness_at_loci'], plot_name=f"EZ loss-only", zero_neg_mp_responses=True)
     sf_analysis.sf_linear_mixed_model_fitting(thickness_cols=['rpe_thickness_at_loci'], plot_name=f"RPE loss-only", zero_neg_mp_responses=True)
