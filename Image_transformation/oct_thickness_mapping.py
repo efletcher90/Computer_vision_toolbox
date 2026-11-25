@@ -2,7 +2,7 @@ from mp_oct_enums_helpers import _rgb_to_thickness
 import numpy as np
 from PIL import Image
 
-class OctThicknessMapping:
+class OctThicknessMapper:
     def __init__(self, registered_pairs, ez_lut_csv, rpe_lut_csv):
         self.registered_pairs = registered_pairs
         self.ez_lut_csv = ez_lut_csv

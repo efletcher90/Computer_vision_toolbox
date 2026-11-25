@@ -6,14 +6,14 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from mp_oct_enums_helpers import _to_uint8, _stim_text_hex
 
-class CreateMicroperimetryDataDicts:
+class MicroperimetryParser:
     def __init__(self, mp_dir, metadata_keys):
         self.mp_dir = mp_dir
         self.metadata_keys = metadata_keys
 
-    # Create list of 'projection.xml' microperimetry datafiles
+    # Create list of dicts of 'projection.xml' microperimetry datafiles. Also create a set of unique mp exam folders
     def get_mp_list(self):
-        mp_list = []
+        mp_data = []
         seen_exams = set()
 
         # find all the scan folders within the root directory, sorted by visit number (e.g. V1 to V5).
@@ -23,14 +23,16 @@ class CreateMicroperimetryDataDicts:
                          key=lambda f: int(re.search(r'_V(\d+)', os.path.basename(f)).group(1)))
 
         # get the patient id from the file basename, just split at the first underscore. This is then assigned to the final dict
-        p_id = os.path.basename(folders[-1]).split("_")[0]
+        patient_id = os.path.basename(folders[-1]).split("_")[0]
         for f in folders:
             for dirpath, _, filenames in os.walk(f):
                 # gather lower case filenames in folder
                 filenames = {files.lower(): files for files in filenames}
 
+                # Due to the nesting of dirs, without filtering out already seen folders, we would duplicate mp data
+                # parsing as later visits hold data for previous visits
                 if 'projection.xml' in filenames:
-                    # exam folder is named with the ExamID. skip it if already found in an earlier visit
+                    # Exam folder is named with the ExamID. Skip it if already found in an earlier visit
                     exam_id = os.path.basename(dirpath)
                     if exam_id in seen_exams:
                         continue
@@ -45,11 +47,11 @@ class CreateMicroperimetryDataDicts:
                     png_name = filenames.get('stillpicture.png')
                     png_path = os.path.join(dirpath, png_name)
 
-                    mp_list.append({'xml_file': xml_path, 'scan_img': png_path, 'timepoint': visit_timepoint})
+                    mp_data.append({'xml_file':xml_path, 'scan_img':png_path, 'timepoint':visit_timepoint})
 
-        return mp_list, p_id
+        return mp_data, patient_id
 
-    def parse_mp_xml_data(self, xml_files, p_id):
+    def parse_mp_xml_data(self, xml_files, patient_id):
         all_xml_data = []
 
         for x in xml_files:
@@ -60,8 +62,8 @@ class CreateMicroperimetryDataDicts:
             xml_dict = {}
             stim_dict = {}
 
+            # read xml as raw bytes (i.e. "rb") then convert to dict w/ xmltodict
             with open(xml_path, "rb") as f:
-                # read xml as raw bytes ("rb"), then convert to dict w/ xmltodict
                 raw_bytes = f.read()
                 mp_data = xmltodict.parse(raw_bytes, force_list=("Stimulus",))
 
@@ -71,12 +73,10 @@ class CreateMicroperimetryDataDicts:
                     # need to add a zero to stimulus ids lower than 10, so that sorted() works properly
                     stim_key = f"stimulus_{int(stimulus_id['@id']):02d}"
                     # values are a list of intensity, ray and angle_deg, in order.
-                    # Cartesian positioning used to remap the coordinates from ray and angle_deg
-                    stim_value = [int(stimulus_id["@final_intensity"]), float(stimulus_id["@ray"]),
-                                  float(stimulus_id["@angle_deg"])]
+                    # Cartesian positioning used to remap the coordinates from ray and angle_deg - had to seek help here
+                    stim_value = [int(stimulus_id["@final_intensity"]), float(stimulus_id["@ray"]), float(stimulus_id["@angle_deg"])]
                     stim_dict[stim_key] = stim_value
 
-            sorted_stim_dict = dict(sorted(stim_dict.items()))
             m_data = mp_data["MitProjection"]["Header"]
 
             # need to filter out any failed scans that have less than the 68 used in the microperimetry SOP
@@ -87,8 +87,9 @@ class CreateMicroperimetryDataDicts:
             sorted_stim_dict = dict(sorted(stim_dict.items()))
 
             # add patient metadata k:v pairs to xml_dict
-            xml_dict.update({'patient_id': p_id, 'scan_path': png_path, 'timepoint':timepoint})
+            xml_dict.update({'patient_id':patient_id, 'scan_path':png_path, 'timepoint':timepoint})
             xml_dict.update({k: m_data[k] for k in self.metadata_keys if k in m_data})
+
             # the sorted stim data is added after the patient metadata so that the original order of the enum list is kept at the start of the dict
             xml_dict.update(sorted_stim_dict)
 
@@ -96,7 +97,7 @@ class CreateMicroperimetryDataDicts:
 
         return all_xml_data
 
-class CalculateMicroperimetryCoordinates:
+class MicroperimetryCoordinateCalculator:
     def __init__(self, patient_data):
         self.patient_data = patient_data
 
@@ -158,7 +159,7 @@ class CalculateMicroperimetryCoordinates:
 
         return self.patient_data
 
-class FundusOverlays:
+class FundusOverlayRenderer:
     def __init__(self, patient_data, colour_map, mp_dir, output_dir, folder_timestamp, aavb_font):
         self.patient_data = patient_data
         self.colour_map = colour_map

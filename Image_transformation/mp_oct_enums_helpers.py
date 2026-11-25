@@ -2,6 +2,7 @@ import os
 import numpy as np
 import csv
 import PIL.Image as Image
+from operator import itemgetter
 from PIL import ImageDraw
 import math
 from matplotlib.colors import BoundaryNorm
@@ -68,16 +69,16 @@ def _normalise_eye(eye):
         return 'Right'
     return e
 
-def _number_multiple_recordings_at_timepoint(p_data):
-    # mp data can have 2 recordings per eye at a timepoint (e.g. 2 baselines).
-    # Store a sequential number (e.g. 1, 2), in date order, as under 'repeat' key,
+# mp data can have 2 recordings per eye at a timepoint e.g. for baseline data.
+# So, loop through the exams in date order, with the first test at a visit being numbered 1 (under 'repeat' k:v)
+def _number_multiple_recordings_at_timepoint(patient_data):
     counts = {}
-    for patient in sorted(p_data, key=lambda d: d['DateTime']):
+    for patient in sorted(patient_data, key=itemgetter('DateTime')):
         key = (patient['patient_id'], patient['Eye'], patient['timepoint'])
         counts[key] = counts.get(key, 0) + 1
         patient['repeat'] = counts[key]
 
-    return p_data
+    return patient_data
 
 def _stim_text_hex(d):
     # white text on the dark ellipses is fine, but not so good on the light ones -- this switches the number colour
@@ -183,7 +184,7 @@ def _ez_and_rpe_maps_on_slo_img(registration_data):
 # align timepoints with ez disruption and loss (i.e. 0-20um and 0um, as determined by Cleveland)
 # ontop of stim_id locations (yellow circles highlight problematic stims.
 # this is to pinpoint any stim sites that have high sensitivity and yet low ez structure
-def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edgecolours=None):
+def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, highlighted_stim_ids, edge_colours=None):
     font = FontProperties(fname=AAVB_FONT, size=10)
     for scan in reg_data:
         ez = scan['ez_px_thicknesses'][1]
@@ -207,8 +208,8 @@ def _plot_ez_integrity_and_sensitivity_per_timepoint(reg_data, suspect_ids, edge
 
         # circle the suspect stimuli
         for stim in stimuli:
-            if stim['id'] in suspect_ids:
-                plt.scatter(stim['transf_px_x'], stim['transf_px_y'], s=250, facecolors='none', edgecolors=edgecolours, linewidths=2)
+            if stim['id'] in highlighted_stim_ids:
+                plt.scatter(stim['transf_px_x'], stim['transf_px_y'], s=250, facecolors='none', edgecolors=edge_colours, linewidths=2)
 
         cbar = plt.colorbar(sc, ticks=range(0, 37, 6), label='Sensitivity (dB)', fraction=0.046, pad=0.04)
         plt.text(0.03, 0.07, 'EZ loss (0 µm)', color='red', transform=plt.gca().transAxes)

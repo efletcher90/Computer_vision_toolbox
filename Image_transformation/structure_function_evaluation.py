@@ -55,8 +55,8 @@ class StructureFunctionAnalysis:
                                 'sensitivity_db': stim['intensity'],
                                 'transf_px_x': round(float(x), 1),
                                 'transf_px_y': round(float(y), 1),
-                                'direct_ez_mean_thickness': ez_pixels.mean() if ez_pixels.size else np.nan,
-                                'direct_rpe_mean_thickness': rpe_pixels.mean() if rpe_pixels.size else np.nan,
+                                'ez_thickness_at_loci': ez_pixels.mean() if ez_pixels.size else np.nan,
+                                'rpe_thickness_at_loci': rpe_pixels.mean() if rpe_pixels.size else np.nan,
                                 'border_dist_px': stim['border_dist_px']}
                                 )
 
@@ -64,7 +64,7 @@ class StructureFunctionAnalysis:
 
     # linear regression models are too crude for the dataset, run LMM on the sf_dict data obtained from direct sf measurements
     def sf_linear_mixed_model_fitting(self, adjust_for_timepoint=True,
-                                      thickness_cols=('direct_ez_mean_thickness', 'direct_rpe_mean_thickness'),
+                                      thickness_cols=('ez_thickness_at_loci', 'rpe_thickness_at_loci'),
                                       zero_neg_mp_responses=None,
                                       plot_name=None,
                                       ):
@@ -74,7 +74,7 @@ class StructureFunctionAnalysis:
 
         df = pd.DataFrame(self.sf_dict)
 
-        # If True, negative mp responses are set to 0 dB, otherwise False removes them from dataframe
+        # If True, negative mp responses are set to 0 dB as -1dB not meaningful. If False, points removed from dataframe
         if zero_neg_mp_responses:
             df['sensitivity_db'] = df['sensitivity_db'].clip(lower=0)
         else:
@@ -83,7 +83,7 @@ class StructureFunctionAnalysis:
         # keep stimuli with a thickness for every layer in the model (drops points outside the OCT scan)
         df = df.dropna(subset=list(thickness_cols))
 
-        # fixed effects: each layer's thickness, optionally adjusted for timepoint
+        # fixed effects: each layer's thickness, optionally adjusted for timepoint/visit
         formula = 'sensitivity_db ~ ' + ' + '.join(thickness_cols)
         if adjust_for_timepoint:
             formula += ' + C(timepoint)'

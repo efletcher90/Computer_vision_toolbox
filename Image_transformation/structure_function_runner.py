@@ -1,77 +1,77 @@
-from Image_transformation.fundus_mapping import CreateMicroperimetryDataDicts, CalculateMicroperimetryCoordinates, FundusOverlays
-from Image_transformation.oct_thickness_mapping import OctThicknessMapping
+from Image_transformation.fundus_mapping import MicroperimetryParser, MicroperimetryCoordinateCalculator, FundusOverlayRenderer
+from Image_transformation.oct_thickness_mapping import OctThicknessMapper
 from Image_transformation.fundus_registration import FundusRegistrator
 from Image_transformation.structure_function_evaluation import StructureFunctionAnalysis
 from Image_transformation.mp_oct_enums_helpers import (DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, OCT_DIR, METADATA_KEYS,
                                                        _test_grid_centres, _number_multiple_recordings_at_timepoint,
                                                        AAVB_FONT, EZ_LUT, RPE_LUT, SLO_PX_PER_DEG, _ez_and_rpe_maps_on_slo_img,
-                                                       _plot_ez_integrity_and_sensitivity_per_timepoint, _offset_test, _ez_loss_border_distance_to_stim)
+                                                       _plot_ez_integrity_and_sensitivity_per_timepoint, _ez_loss_border_distance_to_stim)
 import os
 import time
 
-def main(run_checks=True):
+def main(run_debug_checks=True):
     timestamp=time.strftime("%Y-%m-%d_%H%M")
-    xml_parser = CreateMicroperimetryDataDicts(MP_DIR, METADATA_KEYS)
 
-    mp_files, patient_id = xml_parser.get_mp_list()
-    patient_data_dicts = xml_parser.parse_mp_xml_data(mp_files, patient_id)
-    patient_data_dicts = _number_multiple_recordings_at_timepoint(patient_data_dicts)
+    # Create mp_parser instance to gather microperimetry (mp) data from the xml files
+    mp_parser = MicroperimetryParser(MP_DIR, METADATA_KEYS)
+    mp_files, patient_id = mp_parser.get_mp_list()
+    exams = mp_parser.parse_mp_xml_data(mp_files, patient_id)
+    # add a counter to the baseline mp recordings to distinguish the duplicates. Only use one for registration
+    exams = _number_multiple_recordings_at_timepoint(exams)
 
-    calculator = CalculateMicroperimetryCoordinates(patient_data_dicts)
-    data_with_coords = calculator.calculate_pixel_coordinates()
+    # Instantiate the 'coord_calculator' object and pass it the 'exams' mp data to find the mp_stim loci coordinates
+    coord_calculator = MicroperimetryCoordinateCalculator(exams)
+    exams_with_coords = coord_calculator.calculate_pixel_coordinates()
 
-    # This call is used to check for the centre grid points on
-    if run_checks:
-        for patient in patient_data_dicts:
+    # This call is used to check for the centre grid points during debugging
+    if run_debug_checks:
+        for patient in exams:
             _test_grid_centres(patient)
 
-    oct_parser = FundusRegistrator(data_with_coords, OCT_DIR, OUTPUT_DIR, AAVB_FONT, timestamp)
-    oct_file_list = oct_parser.get_slo_list()
+    registrator = FundusRegistrator(exams_with_coords, OCT_DIR, OUTPUT_DIR, AAVB_FONT, timestamp)
+    oct_files = registrator.get_slo_list()
 
-    mp_oct_matches = oct_parser.match_oct_with_mp(oct_file_list)
+    mp_oct_pairs = registrator.match_oct_with_mp(oct_files)
 
     # identify matches for debugging
-    for match in mp_oct_matches:
-        print(match['patient_id'], match['exam_id'], match['eye'], match['timepoint'], '->', os.path.basename(match['slo_file']))
+    for pair in mp_oct_pairs:
+        print(pair['patient_id'], pair['exam_id'], pair['eye'], pair['timepoint'], '->', os.path.basename(pair['slo_file']))
 
-    overlay = FundusOverlays(data_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp, AAVB_FONT)
+    overlay_renderer = FundusOverlayRenderer(exams_with_coords, DB_COLOUR_VALUES, MP_DIR, OUTPUT_DIR, timestamp, AAVB_FONT)
 
-    overlay.draw_mp_data_to_maia_scan()
-    registration_data = oct_parser.mp_oct_fundus_registration(mp_oct_matches)
+    overlay_renderer.draw_mp_data_to_maia_scan()
+    registered_pairs = registrator.mp_oct_fundus_registration(mp_oct_pairs)
 
-    mapping = OctThicknessMapping(registration_data, EZ_LUT, RPE_LUT)
-    rgb_values_ez, rgb_values_rpe = mapping.get_pixel_thickness_values()
+    thickness_mapper = OctThicknessMapper(registered_pairs, EZ_LUT, RPE_LUT)
+    rgb_values_ez, rgb_values_rpe = thickness_mapper.get_pixel_thickness_values()
 
     # check: EZ-loss outline on each SLO (thickness maps must line up with the SLO)
-    if run_checks:
-        _ez_and_rpe_maps_on_slo_img(registration_data)
+    if run_debug_checks:
+        _ez_and_rpe_maps_on_slo_img(registered_pairs)
 
-    mapping.overlay_rgb_maps(rgb_values_ez, rgb_values_rpe)
+    thickness_mapper.overlay_rgb_maps(rgb_values_ez, rgb_values_rpe)
 
-    overlay.overlay_thickness_maps_to_oct(registration_data)
-    overlay.overlay_transformed_stim_ellipses_to_oct(registration_data)
+    overlay_renderer.overlay_thickness_maps_to_oct(registered_pairs)
+    overlay_renderer.overlay_transformed_stim_ellipses_to_oct(registered_pairs)
 
-    _ez_loss_border_distance_to_stim(registration_data)
+    _ez_loss_border_distance_to_stim(registered_pairs)
 
-    analysis = StructureFunctionAnalysis(registration_data, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
-    analysis.direct_structure_function_measurement()
+    sf_analysis = StructureFunctionAnalysis(registered_pairs, timestamp, SLO_PX_PER_DEG, OUTPUT_DIR)
+    sf_analysis.direct_structure_function_measurement()
 
-    # add other stim_ids if you want to highglight on gs slo image.
-    # The fn kwarg for 'edgecolors' needs to be 'yellow' or not None
-    if run_checks:
-        _plot_ez_integrity_and_sensitivity_per_timepoint(registration_data, {'stimulus_07'})
+    # add other stim_ids if you want to highlight on gs slo image. The fn kwarg for 'edge_colours' -> 'yellow' or None
+    #
+    if run_debug_checks:
+        _plot_ez_integrity_and_sensitivity_per_timepoint(registered_pairs, {'stimulus_07'})
 
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_ez_mean_thickness'],
-                                           plot_name=f"EZ loss-only", zero_neg_mp_responses=True)
-    analysis.sf_linear_mixed_model_fitting(thickness_cols=['direct_rpe_mean_thickness'],
-                                           plot_name=f"RPE loss-only", zero_neg_mp_responses=True)
-    analysis.sf_linear_mixed_model_fitting(plot_name=f"EZ and RPE combined model",
-                                           zero_neg_mp_responses=True)
+    sf_analysis.sf_linear_mixed_model_fitting(thickness_cols=['ez_thickness_at_loci'], plot_name=f"EZ loss-only", zero_neg_mp_responses=True)
+    sf_analysis.sf_linear_mixed_model_fitting(thickness_cols=['rpe_thickness_at_loci'], plot_name=f"RPE loss-only", zero_neg_mp_responses=True)
+    sf_analysis.sf_linear_mixed_model_fitting(plot_name=f"EZ and RPE combined model", zero_neg_mp_responses=True)
 
-    analysis.interpolated_kriged_sensitivity_map()
+    sf_analysis.interpolated_kriged_sensitivity_map()
 
-    # sf_data.scotoma_and_layer_loss_correlation()
-    # sf_data.perilesion_sf_analysis()
+    # sf_analysis.scotoma_and_layer_loss_correlation()
+    # sf_analysis.perilesion_sf_analysis()
 
 if __name__ == "__main__":
     main()
